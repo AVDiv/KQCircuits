@@ -15,12 +15,14 @@
 # (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
 # for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
 
+import pytest
 from kqcircuits.simulations.xmons_direct_coupling_sim import XMonsDirectCouplingSim
 
 
-def test_ansys_export_produces_output_files(layout, perform_test_ansys_export_produces_output_files):
-    perform_test_ansys_export_produces_output_files(XMonsDirectCouplingSim(layout))
+def test_ansys_export_produces_output_files(perform_test_ansys_export_produces_output_files):
+    perform_test_ansys_export_produces_output_files(XMonsDirectCouplingSim)
 
 
-def test_sonnet_export_produces_output_files(layout, perform_test_sonnet_export_produces_output_files):
-    perform_test_sonnet_export_produces_output_files(XMonsDirectCouplingSim(layout))
+@pytest.mark.slow
+def test_sonnet_export_produces_output_files(perform_test_sonnet_export_produces_output_files):
+    perform_test_sonnet_export_produces_output_files(XMonsDirectCouplingSim)

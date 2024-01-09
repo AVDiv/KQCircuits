@@ -17,20 +17,19 @@
 
 
 from math import sqrt
-from autologging import logged
 from kqcircuits.pya_resolver import pya
 from kqcircuits.util.parameters import Param, pdt
 from kqcircuits.junctions.junction import Junction
 from kqcircuits.util.symmetric_polygons import polygon_with_vsym
 
 
-@logged
 class ManhattanSingleJunction(Junction):
     """The PCell declaration for a Manhattan style single junction.
     """
 
     finger_overshoot = Param(pdt.TypeDouble, "Length of fingers after the junction.", 1.0, unit="μm")
     include_base_metal_gap = Param(pdt.TypeBoolean, "Include base metal gap layer.", True)
+    include_base_metal_addition = Param(pdt.TypeBoolean, "Include base metal addition layer.", True)
     shadow_margin = Param(pdt.TypeDouble, "Shadow layer margin near the the pads.", 0.5, unit="μm")
     separate_junctions = Param(pdt.TypeBoolean, "Junctions to separate layer.", False)
     offset_compensation = Param(pdt.TypeDouble, "Junction lead offset from junction width", 0, unit="μm")
@@ -38,20 +37,21 @@ class ManhattanSingleJunction(Junction):
     finger_overlap = Param(pdt.TypeDouble, "Length of fingers inside the pads.", 1.0, unit="μm")
     height = Param(pdt.TypeDouble, "Height of the junction element.", 22.0, unit="μm")
     width = Param(pdt.TypeDouble, "Width of the junction element.", 22.0, unit="μm")
+    pad_height = Param(pdt.TypeDouble, "Height of the junction pad.", 6.0, unit="μm")
+    pad_width = Param(pdt.TypeDouble, "Width of the junction pad.", 12.0, unit="μm")
+    pad_to_pad_separation = Param(pdt.TypeDouble, "Pad separation.", 6.0, unit="μm")
+    x_offset = Param(pdt.TypeDouble, "Horizontal junction offset.", 0, unit="μm")
+    pad_rounding_radius = Param(pdt.TypeDouble, "Rounding radius of the junction pad.", 0.5, unit="μm")
 
     def build(self):
         self.produce_manhattan_junction()
 
     def produce_manhattan_junction(self):
 
-        # geometry constants
-        p_height = 6  # pad height
-        p_width = self.a + 2  # pad width
-
         # corner rounding parameters
         rounding_params = {
-            "rinner": 0.5,  # inner corner rounding radius
-            "router": 0.5,  # outer corner rounding radius
+            "rinner": self.pad_rounding_radius,  # inner corner rounding radius
+            "router": self.pad_rounding_radius,  # outer corner rounding radius
             "n": 64,  # number of point per rounded corner
         }
 
@@ -60,26 +60,32 @@ class ManhattanSingleJunction(Junction):
         shadow_shapes = []
 
         # create rounded bottom part
-        y0 = self.height / 2 - 9
+        y0 = (self.height / 2) - self.pad_height/2
         bp_pts_left = [
-            pya.DPoint(-p_width / 2, y0),
-            pya.DPoint(-p_width / 2, y0 + p_height)
+            pya.DPoint(-self.pad_width / 2, y0),
+            pya.DPoint(-self.pad_width / 2, y0 + self.pad_height)
         ]
-        bp_shape = polygon_with_vsym(bp_pts_left)
+        bp_shape = pya.DTrans(0, False, 0,
+                              -self.pad_height / 2 - self.pad_to_pad_separation/2) * polygon_with_vsym(bp_pts_left)
         self._round_corners_and_append(bp_shape, junction_shapes_bottom, rounding_params)
 
         bp_shadow_pts_left = [
             bp_pts_left[0] + pya.DPoint(-self.shadow_margin, -self.shadow_margin),
             bp_pts_left[1] + pya.DPoint(-self.shadow_margin, self.shadow_margin)
         ]
-        bp_shadow_shape = polygon_with_vsym(bp_shadow_pts_left)
+        bp_shadow_shape = pya.DTrans(0, False, 0,
+                                     -self.pad_height / 2
+                                     - self.pad_to_pad_separation / 2) * polygon_with_vsym(bp_shadow_pts_left)
         self._round_corners_and_append(bp_shadow_shape, shadow_shapes, rounding_params)
 
         # create rounded top part
-        tp_shape = pya.DTrans(0, False, 0, 12) * polygon_with_vsym(bp_pts_left)
+        tp_shape = pya.DTrans(0, False, 0,
+                              self.pad_height/2 + self.pad_to_pad_separation/2) * polygon_with_vsym(bp_pts_left)
         self._round_corners_and_append(tp_shape, junction_shapes_top, rounding_params)
 
-        tp_shadow_shape = pya.DTrans(0, False, 0, 12) * polygon_with_vsym(bp_shadow_pts_left)
+        tp_shadow_shape = pya.DTrans(0, False, 0,
+                                     self.pad_height/2 +
+                                     self.pad_to_pad_separation/2) * polygon_with_vsym(bp_shadow_pts_left)
         self._round_corners_and_append(tp_shadow_shape, shadow_shapes, rounding_params)
 
         # create rectangular junction-support structures and junctions
@@ -114,8 +120,8 @@ class ManhattanSingleJunction(Junction):
                 pya.DPoint(jx - fo - size, jy - fo),
             ]
 
-        finger_bottom = pya.DTrans(-jx, -jy) * pya.DPolygon(finger_points(ddb))
-        finger_top = pya.DTrans(-jx, -jy) * pya.DPolygon(finger_points(ddt))
+        finger_bottom = pya.DTrans(-jx, -jy + self.x_offset) * pya.DPolygon(finger_points(ddb))
+        finger_top = pya.DTrans(-jx + self.x_offset, -jy) * pya.DPolygon(finger_points(ddt))
 
         junction_shapes = [(pya.DTrans(jx - finger_margin, jy) * finger_top).to_itype(self.layout.dbu),
                            (pya.DTrans(0, False, jx-2*top_corner.x, jy) * finger_top).to_itype(self.layout.dbu),
@@ -152,22 +158,28 @@ class ManhattanSingleJunction(Junction):
             pya.DPoint(x0, y0 - 4),
             pya.DPoint(x0, 0)
         ]
-        shape = polygon_with_vsym(bottom_pts)
-        self.cell.shapes(self.get_layer("base_metal_addition")).insert(shape)
-        # metal additions top
-        top_pts = [
-            pya.DPoint(x0 + 2, y0 + 7),
-            pya.DPoint(x0 + 2, y0 + 5),
-            pya.DPoint(x0 + 3, y0 + 5),
-            pya.DPoint(x0 + 3, y0 + 4),
-            pya.DPoint(x0, y0 + 4),
-            pya.DPoint(x0, self.height),
-        ]
-        shape = polygon_with_vsym(top_pts)
-        self.cell.shapes(self.get_layer("base_metal_addition")).insert(shape)
+        if self.include_base_metal_addition:
+            shape = polygon_with_vsym(bottom_pts)
+            self.cell.shapes(self.get_layer("base_metal_addition")).insert(shape)
+            # metal additions top
+            top_pts = [
+                pya.DPoint(x0 + 2, y0 + 7),
+                pya.DPoint(x0 + 2, y0 + 5),
+                pya.DPoint(x0 + 3, y0 + 5),
+                pya.DPoint(x0 + 3, y0 + 4),
+                pya.DPoint(x0, y0 + 4),
+                pya.DPoint(x0, self.height),
+            ]
+
+            shape = polygon_with_vsym(top_pts)
+            self.cell.shapes(self.get_layer("base_metal_addition")).insert(shape)
         # metal gap
         if self.include_base_metal_gap:
-            pts = bottom_pts + [pya.DPoint(-self.width/2, 0), pya.DPoint(-self.width/2, self.height)] + top_pts[::-1]
+            if self.include_base_metal_addition:
+                pts = bottom_pts + [pya.DPoint(-self.width / 2, 0), pya.DPoint(-self.width / 2, self.height)] \
+                      + top_pts[::-1]
+            else:
+                pts = [pya.DPoint(-self.width / 2, 0), pya.DPoint(-self.width / 2, self.height)]
             shape = polygon_with_vsym(pts)
             self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape)
 

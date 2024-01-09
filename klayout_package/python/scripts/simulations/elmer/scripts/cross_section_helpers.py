@@ -16,7 +16,7 @@
 # for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
 
 import re
-import os
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -77,6 +77,7 @@ def produce_cross_section_mesh(json_data, msh_file):
 
     # Create mesh using geometries in gds file
     gmsh.model.add("cross_section")
+
     dim_tags = {}
     for name, num in layers.items():
         reg = pya.Region(cell.shapes(layout.layer(*num))) & bbox
@@ -86,14 +87,14 @@ def produce_cross_section_mesh(json_data, msh_file):
             hull_point_coordinates = [
                 (point.x * layout.dbu, point.y * layout.dbu, 0) for point in poly.each_point_hull()
             ]
-            hull_plane_surface_id = add_polygon(hull_point_coordinates)
+            hull_plane_surface_id, _ = add_polygon(hull_point_coordinates)
             hull_dim_tag = (2, hull_plane_surface_id)
             hole_dim_tags = []
             for hole in range(poly.holes()):
                 hole_point_coordinates = [
                     (point.x * layout.dbu, point.y * layout.dbu, 0) for point in poly.each_point_hole(hole)
                 ]
-                hole_plane_surface_id = add_polygon(hole_point_coordinates)
+                hole_plane_surface_id, _ = add_polygon(hole_point_coordinates)
                 hole_dim_tags.append((2, hole_plane_surface_id))
             if hole_dim_tags:
                 layer_dim_tags += gmsh.model.occ.cut([hull_dim_tag], hole_dim_tags)[0]
@@ -138,9 +139,8 @@ def produce_cross_section_mesh(json_data, msh_file):
 
     # Set meshing options
     workflow = json_data.get('workflow', dict())
-    gmsh_n_threads = workflow.get('gmsh_n_threads', 1)
-    if gmsh_n_threads == -1:
-        gmsh_n_threads = int(os.cpu_count() / 2 + 0.5)  # for the moment avoid psutil.cpu_count(logical=False)
+    n_threads_dict = workflow['sbatch_parameters'] if 'sbatch_parameters' in workflow else workflow
+    gmsh_n_threads = int(n_threads_dict.get('gmsh_n_threads', 1))
     set_meshing_options(mesh_field_ids, mesh_global_max_size, gmsh_n_threads)
 
     # Add physical groups
@@ -151,6 +151,8 @@ def produce_cross_section_mesh(json_data, msh_file):
         metal_boundary = gmsh.model.getBoundary(new_tags[n], combined=False, oriented=False, recursive=False)
         gmsh.model.addPhysicalGroup(1, [t[1] for t in metal_boundary], name=f'{n}_boundary')
 
+    set_outer_bcs(bbox, layout)
+
     # Generate and save mesh
     gmsh.model.mesh.generate(2)
     gmsh.write(str(msh_file))
@@ -160,6 +162,55 @@ def produce_cross_section_mesh(json_data, msh_file):
         gmsh.fltk.run()
 
     gmsh.finalize()
+
+def set_outer_bcs(bbox, layout, beps=1e-6):
+    """
+    Sets the outer boundaries so that `xmin`, `xmax`, `ymin` and `ymax` can be accessed as physical groups.
+    This is a desperate attempt because occ module seems buggy: tried to new draw lines and add them to the
+    fragment then fetch the correct `dim_tags`, but the fragment breaks down. So, now we search each boundary
+    using a bounding box search.
+
+    Args:
+        bbox(pya.DBox): bounding box in klayout format
+        layout(pya.Layout): klayout layout
+        beps(float): tolerance for the search bounding box
+    """
+    outer_bc_dim_tags = {}
+    outer_bc_dim_tags['xmin'] = gmsh.model.occ.getEntitiesInBoundingBox(
+                                                         bbox.p1.x * layout.dbu-beps,
+                                                         bbox.p1.y * layout.dbu-beps,
+                                                         -beps,
+                                                         bbox.p1.x * layout.dbu+beps,
+                                                         bbox.p2.y * layout.dbu+beps,
+                                                         beps,
+                                                         dim=1)
+    outer_bc_dim_tags['xmax'] = gmsh.model.occ.getEntitiesInBoundingBox(
+                                                         bbox.p2.x * layout.dbu-beps,
+                                                         bbox.p1.y * layout.dbu-beps,
+                                                         -beps,
+                                                         bbox.p2.x * layout.dbu+beps,
+                                                         bbox.p2.y * layout.dbu+beps,
+                                                         beps,
+                                                         dim=1)
+    outer_bc_dim_tags['ymin'] = gmsh.model.occ.getEntitiesInBoundingBox(
+                                                         bbox.p1.x * layout.dbu-beps,
+                                                         bbox.p1.y * layout.dbu-beps,
+                                                         -beps,
+                                                         bbox.p2.x * layout.dbu+beps,
+                                                         bbox.p1.y * layout.dbu+beps,
+                                                         beps,
+                                                         dim=1)
+    outer_bc_dim_tags['ymax'] = gmsh.model.occ.getEntitiesInBoundingBox(
+                                                         bbox.p1.x * layout.dbu-beps,
+                                                         bbox.p2.y * layout.dbu-beps,
+                                                         -beps,
+                                                         bbox.p2.x * layout.dbu+beps,
+                                                         bbox.p2.y * layout.dbu+beps,
+                                                         beps,
+                                                         dim=1)
+
+    for n, v in outer_bc_dim_tags.items():
+        gmsh.model.addPhysicalGroup(1, [t[1] for t in v], name=f'{n}_boundary')
 
 def produce_cross_section_sif_files(json_data, folder_path):
     """
@@ -179,21 +230,25 @@ def produce_cross_section_sif_files(json_data, folder_path):
             f.write(content)
         return file_name
 
-    sif_files = [save('capacitance.sif', sif_capacitance(json_data,
+    sif_names = json_data['sif_names']
+    if len(sif_names) != 2:
+        logging.warning(f"Cross-section tool requires 2 sif names, given {len(sif_names)}")
+
+    sif_files = [save(f'{sif_names[0]}.sif', sif_capacitance(json_data,
                                                          folder_path,
-                                                         vtu_name='capacitance',
+                                                         vtu_name=sif_names[0],
                                                          angular_frequency=0,
                                                          dim=2,
                                                          with_zero=False))]
     london_penetration_depth = json_data.get('london_penetration_depth', 0.0)
     if london_penetration_depth > 0:
         circuit_definitions_file = save('inductance.definitions', sif_circuit_definitions(json_data))
-        sif_files.append(save('inductance.sif',
+        sif_files.append(save(f'{sif_names[1]}.sif',
                               sif_inductance(json_data, folder_path, angular_frequency, circuit_definitions_file)))
     else:
-        sif_files.append(save('capacitance0.sif', sif_capacitance(json_data,
+        sif_files.append(save(f'{sif_names[1]}.sif', sif_capacitance(json_data,
                                                                   folder_path,
-                                                                  vtu_name='capacitance0',
+                                                                  vtu_name=sif_names[1],
                                                                   angular_frequency=0,
                                                                   dim=2,
                                                                   with_zero=True)))
@@ -256,7 +311,6 @@ def get_interface_quality_factors(json_data, path):
         (dict): energies stored, participations and quality factors of the lossy layers
     """
     interfaces = json_data['dielectric_surfaces']
-
     try:
         energy_data, energy_layer_data = Path(path) / 'energy.dat', Path(path) / 'energy.dat.names'
         energies = pd.read_csv(energy_data, delim_whitespace=True, header=None).values.flatten()
@@ -265,12 +319,28 @@ def get_interface_quality_factors(json_data, path):
             energy_layers = [
                 match.group(1)
                 for line in fp
-                for match in re.finditer("diffusive energy: potential mask ([a-z_]+)", line)
+                for match in re.finditer("diffusive energy: potential mask ([a-z_0-9]+)", line)
             ]
 
         total_energy = energies.sum()
         energy_dict = dict(zip(energy_layers, energies))
+
+        # Sum the energies of interface sub-layers
+        for i_key in interfaces.keys():
+            e_tot = energy_dict.pop(i_key, 0.)
+            for e_key, e_val in list(energy_dict.items()):
+                if e_key.startswith(i_key):
+                    e_tot += e_val
+                    del energy_dict[e_key]
+                    energy_dict[e_key + f' (contained in {i_key})'] = e_val
+
+            energy_dict[i_key] = e_tot
+
+            if energy_dict[i_key] != 0:
+                energy_layers.append(i_key)
+
         all_energies = {f'E_{k}': energy for k, energy in energy_dict.items()}
+        all_participations = {f'p_{k}': energy / total_energy for k, energy in energy_dict.items()}
         # remove non-interface bodies after getting total energy
         energy_layers = frozenset(energy_layers) & frozenset(interfaces.keys())
         energy_dict = {k: energy_dict[k] for k in energy_layers}
@@ -281,7 +351,7 @@ def get_interface_quality_factors(json_data, path):
         }
         quality_factors['Q_total'] = 1 / sum(1 / q for q in quality_factors.values())
 
-        return {**all_energies, **participations, **quality_factors}
+        return {**all_energies, **all_participations, **quality_factors}
 
     except FileNotFoundError:
         return {'Q_total': None}

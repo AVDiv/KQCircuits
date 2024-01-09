@@ -20,26 +20,24 @@ import logging
 import subprocess
 import platform
 import sys
+import os
 import argparse
 from sys import argv
 from pathlib import Path
 
-from autologging import logged
-
 from kqcircuits.elements.element import get_refpoints
 from kqcircuits.defaults import default_layers, TMP_PATH, STARTUPINFO, default_probe_types, default_probe_suffixes, \
-    VERSION_PATHS
+    VERSION_PATHS, default_drc_runset, DRC_PATH
 from kqcircuits.klayout_view import KLayoutView, MissingUILibraryException
 from kqcircuits.pya_resolver import pya, is_standalone_session, klayout_executable_command
 
 
-@logged
 def generate_probepoints_json(cell, face='1t1'):
     # make autoprober json string for cell with reference points with magical names
     if cell is None or face not in ['1t1', '2b1']:
         error_text = f"Invalid face '{face}' or 'nil' cell ."
         error = ValueError(error_text)
-        generate_probepoints_json._log.exception(error_text, exc_info=error)
+        logging.exception(error_text, exc_info=error)
         raise error
 
     layout = cell.layout()
@@ -50,7 +48,7 @@ def generate_probepoints_json(cell, face='1t1'):
     if f"{face}_marker_nw" in refpoints and f"{face}_marker_se" in refpoints:
         markers = {'NW': refpoints[f"{face}_marker_nw"], 'SE': refpoints[f"{face}_marker_se"]}
     else:
-        generate_probepoints_json._log.error(f"There are no usable markers in {face}-face of the cell! Not a Chip?")
+        logging.error(f"There are no usable markers in {face}-face of the cell! Not a Chip?")
         return {}
 
     # flip top-markers back to top side
@@ -132,17 +130,30 @@ def create_or_empty_tmp_directory(dir_name):
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--simulation-export-path", type=str, default=None)
+
+    dir_path = get_simulation_directory(dir_name)
+
+    if dir_path.exists() and dir_path.is_dir():
+        remove_content(dir_path)
+    else:
+        dir_path.mkdir()
+
+    return dir_path
+
+
+def get_simulation_directory(dir_name):
+    """
+    Returns directory path consistent with `create_or_empty_tmp_directory`.
+    """
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--simulation-export-path", type=str, default=None)
     args, _ = parser.parse_known_args()
 
     if args.simulation_export_path is not None:
         dir_path=Path(args.simulation_export_path)
     else:
         dir_path = TMP_PATH.joinpath(dir_name)
-
-    if dir_path.exists() and dir_path.is_dir():
-        remove_content(dir_path)
-    else:
-        dir_path.mkdir()
 
     return dir_path
 
@@ -189,7 +200,7 @@ def write_export_machine_versions_file(path: Path):
 
 def open_with_klayout_or_default_application(filepath):
     """
-    Tries to open file with Klayout. If Klayout is not found, opens file with operating system's default application.
+    Tries to open file with KLayout. If KLayout is not found, opens file with operating system's default application.
     Implementation supports Windows, macOS, and Linux.
     """
     if argv[-1] == "-q":  # quiet mode, do not run viewer
@@ -197,7 +208,7 @@ def open_with_klayout_or_default_application(filepath):
 
     exe = klayout_executable_command()
     if not exe:
-        logging.warning("Klayout executable not found.")
+        logging.warning("KLayout executable not found.")
     else:
         subprocess.call((exe, filepath))
 
@@ -206,3 +217,21 @@ def get_klayout_version():
         return f"KLayout {importlib.metadata.version('klayout')}"
     else:
         return pya.Application.instance().version()
+
+
+def export_drc_report(name, path, drc_script=default_drc_runset):
+    """Run a DRC script on ``path/name.oas`` and export results in ``path/name_drc_report.lyrdb``."""
+
+    drc_runset_path = os.path.join(DRC_PATH, drc_script)
+    input_file = os.path.join(path, f"{name}.oas")
+    output_file = os.path.join(path, f"{name}_drc_report.lyrdb")
+    logging.info("Exporting DRC report to %s", output_file)
+
+    try:
+        subprocess.run([klayout_executable_command(), "-b", "-i",
+                        "-r", drc_runset_path,
+                        "-rd", f"output={output_file}",
+                        input_file
+                        ], check=True, startupinfo=STARTUPINFO)
+    except subprocess.CalledProcessError as e:
+        logging.error(e.output)

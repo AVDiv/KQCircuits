@@ -15,6 +15,8 @@
 # (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
 # for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
 
+import os
+import stat
 
 import json
 import logging
@@ -25,7 +27,7 @@ from pathlib import Path
 from kqcircuits.util.export_helper import write_commit_reference_file
 from kqcircuits.util.geometry_json_encoder import GeometryJsonEncoder
 from kqcircuits.simulations.export.util import export_layers
-from kqcircuits.defaults import ANSYS_SCRIPT_PATHS
+from kqcircuits.defaults import ANSYS_EXECUTABLE, ANSYS_SCRIPT_PATHS
 from kqcircuits.simulations.simulation import Simulation
 
 
@@ -46,8 +48,10 @@ def export_ansys_json(simulation: Simulation, path: Path, ansys_tool='hfss',
                       frequency_units="GHz", frequency=5, max_delta_s=0.1, percent_error=1, percent_refinement=30,
                       maximum_passes=12, minimum_passes=1, minimum_converged_passes=1,
                       sweep_enabled=True, sweep_start=0, sweep_end=10, sweep_count=101, sweep_type='interpolating',
-                      max_delta_f=0.1, n_modes=2, gap_max_element_length=None, substrate_loss_tangent=0,
-                      dielectric_surfaces=None, simulation_flags=None, ansys_project_template=None):
+                      max_delta_f=0.1, n_modes=2, mesh_size=None, substrate_loss_tangent=0,
+                      dielectric_surfaces=None, simulation_flags=None, ansys_project_template=None,
+                      integrate_energies=False, hfss_capacitance_export=False,
+                      mer_coefficients=None, mer_correction_path=None):
     r"""
     Export Ansys simulation into json and gds files.
 
@@ -70,8 +74,8 @@ def export_ansys_json(simulation: Simulation, path: Path, ansys_tool='hfss',
         sweep_type: choices are "interpolating", "discrete" or "fast"
         max_delta_f: Maximum allowed relative difference in eigenfrequency (%). Used when ``ansys_tool`` is *eigenmode*.
         n_modes: Number of eigenmodes to solve. Used when ``ansys_tool`` is 'pyepr'.
-        gap_max_element_length: Largest mesh element length allowed in the gaps given in simulation units
-            (if None is given, then the mesh element size is not restricted in the gap).
+        mesh_size(dict): Dictionary to determine manual mesh refinement on layers. Set key as the layer name and
+            value as the maximal mesh element length inside the layer.
         substrate_loss_tangent: Bulk loss tangent (:math:`\tan{\delta}`) material parameter. 0 is off.
         dielectric_surfaces: Material parameters for TLS interfaces, used in post-processing field calculations
             from the participation sheets. Default is None. Input is of the form::
@@ -93,6 +97,10 @@ def export_ansys_json(simulation: Simulation, path: Path, ansys_tool='hfss',
                 },
         simulation_flags: Optional export processing, given as list of strings
         ansys_project_template: path to the simulation template
+        integrate_energies: Calculate energy integrals over each layer and save them into a file
+        hfss_capacitance_export: If True, the capacitance matrices are exported from HFSS simulations
+        mer_coefficients: dict of coefficients to fix metal edge region participation ratios
+        mer_correction_path: path to metal edge region case that contains participation results
 
     Returns:
          Path to exported json file.
@@ -123,10 +131,14 @@ def export_ansys_json(simulation: Simulation, path: Path, ansys_tool='hfss',
             'max_delta_f': max_delta_f,
             'n_modes': n_modes,
         },
-        'gap_max_element_length': gap_max_element_length,
+        'mesh_size': {} if mesh_size is None else mesh_size,
         'substrate_loss_tangent': substrate_loss_tangent,
         'dielectric_surfaces': dielectric_surfaces,
-        'simulation_flags': simulation_flags
+        'simulation_flags': simulation_flags,
+        'integrate_energies': integrate_energies,
+        'hfss_capacitance_export': hfss_capacitance_export,
+        'mer_coefficients': mer_coefficients,
+        'mer_correction_path': mer_correction_path,
     }
 
     if ansys_project_template is not None:
@@ -148,7 +160,6 @@ def export_ansys_json(simulation: Simulation, path: Path, ansys_tool='hfss',
 
 
 def export_ansys_bat(json_filenames, path: Path, file_prefix='simulation', exit_after_run=False,
-                     ansys_executable=r"%PROGRAMFILES%\AnsysEM\v222\Win64\ansysedt.exe",
                      import_script_folder='scripts', import_script='import_and_simulate.py',
                      post_process_script='export_batch_results.py', intermediate_processing_command=None,
                      use_rel_path=True):
@@ -160,7 +171,6 @@ def export_ansys_bat(json_filenames, path: Path, file_prefix='simulation', exit_
         path: Location where to write the bat file.
         file_prefix: Name of the batch file to be created.
         exit_after_run: Defines if the Ansys Electronics Desktop is automatically closed after running the script.
-        ansys_executable: Path to the Ansys Electronics Desktop executable.
         import_script_folder: Path to the Ansys-scripts folder.
         import_script: Name of import script file.
         post_process_script: Name of post processing script file.
@@ -197,7 +207,7 @@ def export_ansys_bat(json_filenames, path: Path, file_prefix='simulation', exit_
                 str(Path(json_filename).relative_to(path)))
             file.write(printing)
             command = '"{}" -scriptargs "{}" -{} "{}"\n'.format(
-                ansys_executable,
+                ANSYS_EXECUTABLE,
                 str(Path(json_filename).relative_to(path) if use_rel_path else json_filename),
                 run_cmd,
                 str(Path(import_script_folder).joinpath(import_script)))
@@ -212,10 +222,13 @@ def export_ansys_bat(json_filenames, path: Path, file_prefix='simulation', exit_
 
         # Post-process command
         command = '"{}" -{} "{}"\n'.format(
-            ansys_executable,
+            ANSYS_EXECUTABLE,
             run_cmd,
             str(Path(import_script_folder).joinpath(post_process_script)))
         file.write(command)
+
+    # Make the bat file executable in linux
+    os.chmod(bat_filename, os.stat(bat_filename).st_mode | stat.S_IEXEC)
 
     return bat_filename
 
@@ -224,12 +237,12 @@ def export_ansys(simulations, path: Path, ansys_tool='hfss', import_script_folde
                  frequency_units="GHz", frequency=5, max_delta_s=0.1, percent_error=1, percent_refinement=30,
                  maximum_passes=12, minimum_passes=1, minimum_converged_passes=1,
                  sweep_enabled=True, sweep_start=0, sweep_end=10, sweep_count=101, sweep_type='interpolating',
-                 max_delta_f=0.1, n_modes=2, gap_max_element_length=None, substrate_loss_tangent=0,
+                 max_delta_f=0.1, n_modes=2, mesh_size=None, substrate_loss_tangent=0,
                  dielectric_surfaces=None, exit_after_run=False,
-                 ansys_executable=r"%PROGRAMFILES%\AnsysEM\v222\Win64\ansysedt.exe",
                  import_script='import_and_simulate.py', post_process_script='export_batch_results.py',
                  intermediate_processing_command=None, use_rel_path=True, simulation_flags=None,
-                 ansys_project_template=None, skip_errors=False):
+                 ansys_project_template=None, integrate_energies=False, hfss_capacitance_export=False,
+                 skip_errors=False, mer_coefficients=None, mer_correction_path=None):
     r"""
     Export Ansys simulations by writing necessary scripts and json, gds, and bat files.
 
@@ -254,8 +267,8 @@ def export_ansys(simulations, path: Path, ansys_tool='hfss', import_script_folde
         sweep_type: choices are "interpolating", "discrete" or "fast"
         max_delta_f: Maximum allowed relative difference in eigenfrequency (%). Used when ``ansys_tool`` is *eigenmode*.
         n_modes: Number of eigenmodes to solve. Used when ``ansys_tool`` is 'eigenmode'.
-        gap_max_element_length: Largest mesh element length allowed in the gaps given in simulation units
-            (if None is given, then the mesh element size is not restricted in the gap).
+        mesh_size(dict): Dictionary to determine manual mesh refinement on layers. Set key as the layer name and
+            value as the maximal mesh element length inside the layer.
         substrate_loss_tangent: Bulk loss tangent (:math:`\tan{\delta}`) material parameter. 0 is off.
         dielectric_surfaces: Material parameters for TLS interfaces, used in post-processing field calculations
             from the participation sheets. Default is None. Input is of the form::
@@ -277,7 +290,6 @@ def export_ansys(simulations, path: Path, ansys_tool='hfss', import_script_folde
                 },
 
         exit_after_run: Defines if the Ansys Electronics Desktop is automatically closed after running the script.
-        ansys_executable: Path to the Ansys Electronics Desktop executable.
         import_script: Name of import script file.
         post_process_script: Name of post processing script file.
         intermediate_processing_command: Command for intermediate steps between simulations.
@@ -289,12 +301,16 @@ def export_ansys(simulations, path: Path, ansys_tool='hfss', import_script_folde
         use_rel_path: Determines if to use relative paths.
         simulation_flags: Optional export processing, given as list of strings. See Simulation Export in docs.
         ansys_project_template: path to the simulation template
+        integrate_energies: Calculate energy integrals over each layer and save them into a file
+        hfss_capacitance_export: If True, the capacitance matrices are exported from HFSS simulations
         skip_errors: Skip simulations that cause errors. Default is False.
 
             .. warning::
 
                **Use this carefully**, some of your simulations might not make sense physically and
                you might end up wasting time on bad simulations.
+        mer_coefficients: dict of coefficients to fix metal edge region participation ratios
+        mer_correction_path: path to metal edge region case that contains participation results
 
     Returns:
         Path to exported bat file.
@@ -313,11 +329,16 @@ def export_ansys(simulations, path: Path, ansys_tool='hfss', import_script_folde
                                             sweep_enabled=sweep_enabled, sweep_start=sweep_start,
                                             sweep_end=sweep_end, sweep_count=sweep_count, sweep_type=sweep_type,
                                             max_delta_f=max_delta_f, n_modes=n_modes,
-                                            gap_max_element_length=gap_max_element_length,
+                                            mesh_size=mesh_size,
                                             substrate_loss_tangent=substrate_loss_tangent,
                                             dielectric_surfaces=dielectric_surfaces,
                                             simulation_flags=simulation_flags,
-                                            ansys_project_template=ansys_project_template))
+                                            ansys_project_template=ansys_project_template,
+                                            integrate_energies=integrate_energies,
+                                            hfss_capacitance_export=hfss_capacitance_export,
+                                            mer_coefficients=mer_coefficients,
+                                            mer_correction_path=mer_correction_path,
+                                            ))
         except (IndexError, ValueError, Exception) as e:  # pylint: disable=broad-except
             if skip_errors:
                 logging.warning(
@@ -333,7 +354,7 @@ def export_ansys(simulations, path: Path, ansys_tool='hfss', import_script_folde
                 ) from e
 
     return export_ansys_bat(json_filenames, path, file_prefix=file_prefix, exit_after_run=exit_after_run,
-                            ansys_executable=ansys_executable, import_script_folder=import_script_folder,
+                            import_script_folder=import_script_folder,
                             import_script=import_script, post_process_script=post_process_script,
                             intermediate_processing_command=intermediate_processing_command,
                             use_rel_path=use_rel_path)

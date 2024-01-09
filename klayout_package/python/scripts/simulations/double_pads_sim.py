@@ -21,7 +21,8 @@ from pathlib import Path
 
 import numpy as np
 
-from kqcircuits.simulations.double_pads_sim import DoublePadsSim
+from kqcircuits.qubits.double_pads import DoublePads
+from kqcircuits.simulations.single_element_simulation import get_single_element_sim_class
 from kqcircuits.pya_resolver import pya
 from kqcircuits.simulations.export.ansys.ansys_export import export_ansys
 from kqcircuits.simulations.export.elmer.elmer_export import export_elmer
@@ -34,7 +35,7 @@ sim_tools = ['elmer', 'eigenmode', 'q3d']
 
 for sim_tool in sim_tools:
     # Simulation parameters
-    sim_class = DoublePadsSim  # pylint: disable=invalid-name
+    sim_class = get_single_element_sim_class(DoublePads)  # pylint: disable=invalid-name
     sim_parameters = {
         'name': 'double_pads',
         'use_internal_ports': True,
@@ -42,9 +43,9 @@ for sim_tool in sim_tools:
         'face_stack': ['1t1'],
         'box': pya.DBox(pya.DPoint(0, 0), pya.DPoint(2000, 2000)),
 
-        'internal_island_ports': sim_tool != 'eigenmode',  # DoublePads specific
-        'participation_sheet_distance': 5e-3 if sim_tool == 'eigenmode' else 0.0,  # in µm
-        'participation_sheet_thickness': 0.0,
+        'separate_island_internal_ports': sim_tool != 'eigenmode',  # DoublePads specific
+        'tls_layer_thickness': 5e-3 if sim_tool == 'eigenmode' else 0.0,  # in µm
+        'tls_sheet_approximation': sim_tool == 'eigenmode',
         'waveguide_length': 200,
     }
 
@@ -52,7 +53,7 @@ for sim_tool in sim_tools:
 
     # Add eigenmode and Q3D specific settings
     export_parameters_ansys = {
-        'percent_error': 0.3,
+        'percent_error': 0.2,
         'maximum_passes': 18,
         'minimum_passes': 2,
         'minimum_converged_passes': 2,
@@ -60,7 +61,7 @@ for sim_tool in sim_tools:
         'max_delta_f': 0.008,
 
         # do two passes with tight mesh
-        'gap_max_element_length': 25,
+        'mesh_size': {'1t1_gap': 25},
         'maximum_passes': 17,
         'minimum_passes': 1,
         'minimum_converged_passes': 2,
@@ -119,12 +120,12 @@ for sim_tool in sim_tools:
             'n_workers': 4,
             'elmer_n_processes': 4,
             'gmsh_n_threads': 4,
+            'elmer_n_threads': 1,
         },
         'mesh_size': {
             'global_max': 50.,
-            'gap&signal': [2., 4.],
-            'gap&ground': [2., 4.],
-            'port': [1., 4.],
+            '1t1_gap&1t1_signal': [2., 4.],
+            '1t1_gap&1t1_ground': [2., 4.],
         }
     }
 
@@ -141,26 +142,29 @@ for sim_tool in sim_tools:
     # according to the Manhattan junction
 
     simulations = []
-    for gap_height, junction_taper_width, island_width in zip([15.25, 55.25], [31, 31.7], [700, 775]):
+    for island_island_gap, island_width, island1_taper_width, island2_taper_width\
+            in zip([70, 150], [700, 775], [16.17, 37.6], [39.17, 61.3]):
         name = sim_parameters["name"]
-        name = f'{name}_island_dist_{int(2*gap_height + 39.5)}'
+        name = f'{name}_island_dist_{int(island_island_gap)}'
         simulations += [sim_class(layout, **{
-                **sim_parameters,
-                'ground_gap': [900, 900],
-                'coupler_extent': [round(coupler_width), 20],
-                'island1_extent': [round(island_width), 200],
-                'island2_extent': [round(island_width), 200],
-                'junction_type': 'Manhattan',
-                'junction_total_length': 39.5,
-                'island1_taper_width': 2 * gap_height * np.tan(np.radians(15)) + 8,
-                'island1_taper_height': gap_height,
-                'island1_taper_junction_width': 8,
-                'island2_taper_width': 2 * gap_height * np.tan(np.radians(15)) + junction_taper_width,
-                'island2_taper_height': gap_height,
-                'island2_taper_junction_width': junction_taper_width,
-                'name': f'{name}_coupler_width_{round(coupler_width)}'
-            })
-            for coupler_width in np.linspace(50, 800, 21)
+            **sim_parameters,
+            'ground_gap': [900, 900],
+            'a': 5,
+            'b': 20,
+            'coupler_a': 5,
+            'coupler_extent': [round(coupler_width), 20],
+            'island1_extent': [round(island_width), 200],
+            'island2_extent': [round(island_width), 200],
+            'island_island_gap': island_island_gap,
+            'island1_taper_width': island1_taper_width,
+            'island2_taper_width': island2_taper_width,
+            'coupler_offset': 100,
+            'junction_type': 'Manhattan',
+            'island2_taper_junction_width': 31.7,
+            'junction_total_length': 39.5,
+            'name': f'{name}_coupler_width_{round(coupler_width)}'
+        })
+            for coupler_width in np.linspace(20, 300, 51)
         ]
 
     # Create simulation

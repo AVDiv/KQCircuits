@@ -16,15 +16,12 @@
 # for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
 
 
-from autologging import logged
-
 from kqcircuits.elements.airbridges.airbridge import Airbridge
 from kqcircuits.elements.flip_chip_connectors.flip_chip_connector_dc import FlipChipConnectorDc
 from kqcircuits.pya_resolver import pya
 from kqcircuits.util.parameters import Param, pdt, add_parameters_from
 
 
-@logged
 @add_parameters_from(FlipChipConnectorDc)
 @add_parameters_from(Airbridge, bridge_width=40, pad_length=40)
 class AirbridgeMultiFace(Airbridge):
@@ -50,7 +47,7 @@ class AirbridgeMultiFace(Airbridge):
         self.cell.shapes(self.get_layer("base_metal_addition", 1)).insert(shape)
 
         # Add ground grid avoidance to second face
-        self.add_protection(shape.enlarged(self.margin, self.margin), 1, 0)
+        self.add_protection(shape.enlarged(self.margin, self.margin), 1)
 
         # Flip-chip bump
         if self.include_bumps:

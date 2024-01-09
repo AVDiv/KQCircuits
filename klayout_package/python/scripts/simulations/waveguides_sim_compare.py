@@ -51,6 +51,8 @@ parser.add_argument('--no-edge-ports', action="store_true", help='Do not use edg
 parser.add_argument('--flip-chip', action="store_true", help='Make a flip chip')
 parser.add_argument('--ansys', action="store_true", help='Use Ansys (otherwise Elmer)')
 parser.add_argument('--use-sbatch', action="store_true", help='Use sbatch (Slurm)')
+parser.add_argument('--adaptive-remeshing', action="store_true", help='Use adaptive remeshing')
+parser.add_argument('--port-termination', action="store_true", help='Port termination')
 parser.add_argument('--wave-equation', action="store_true",
         help='Compute wave equation (otherwise electrostatics)')
 parser.add_argument('--n-guides-range', nargs=2, default=[1,2],
@@ -61,6 +63,8 @@ parser.add_argument('--cpw-length', default=100., type=float, help='Length of cp
 parser.add_argument('--p-element-order', default=3, type=int, help='Order of p-elements in the FEM computation')
 parser.add_argument('--elmer-n-processes', default=-1, type=int,
         help='Number of processes in Elmer simulations, -1 means all physical cores')
+parser.add_argument('--elmer-n-threads', default=1, type=int,
+        help='Number of threads per process in Elmer simulations')
 parser.add_argument('--gmsh-n-threads', default=-1, type=int, help='Number of threads in Gmsh simulations, \
         -1 means all physical cores')
 
@@ -106,7 +110,7 @@ sim_parameters = {
     'name': 'waveguides',
     'use_internal_ports': True,
     'use_edge_ports': edge_ports,
-    'port_termination_end': False,
+    'port_termination_end': args.port_termination,
     'use_ports': True,
     'box': pya.DBox(pya.DPoint(-box_size_x/2., -box_size_y/2.), pya.DPoint(box_size_x/2., box_size_y/2.)),
     'cpw_length': cpw_length,  # if edge_ports then this has to be box_size_x
@@ -121,10 +125,11 @@ sim_parameters = {
 
 if use_elmer:
     elmer_n_processes = args.elmer_n_processes
+    elmer_n_threads = args.elmer_n_threads
     mesh_size = {
         'global_max': args.global_mesh_size,
-        'gap': args.gap_mesh_size,
-        'port': args.port_mesh_size,
+        '1t1_gap': args.gap_mesh_size,
+        **{f'port_{i+1}': args.port_mesh_size for i in range(args.n_guides_range[1])}
     }
 
     if wave_equation:
@@ -140,9 +145,18 @@ if use_elmer:
             'linear_system_method': 'mg',
             'p_element_order': args.p_element_order,
         }
+        if args.adaptive_remeshing and elmer_n_processes == 1:
+            export_parameters_elmer.update(
+                {
+                    'percent_error': 0.0001,
+                    'max_error_scale': 2,          # allow outlier where error is 2*0.005
+                    'max_outlier_fraction': 1e-3,  # allow 0.1% of outliers
+                    'maximum_passes': 3,
+                    'minimum_passes': 2
+                })
 
     workflow = {
-        'run_gmsh_gui': True,  # For GMSH: if true, the mesh is shown after it is done
+        'run_gmsh_gui': False,  # For GMSH: if true, the mesh is shown after it is done
                                # (for large meshes this can take a long time)
         'run_elmergrid': True,
         'run_elmer': True,
@@ -160,20 +174,35 @@ if use_elmer:
                                                  #         the physical cores (based on
                                                  #         the machine which was used to
                                                  #         prepare the simulation)
-#        'n_workers': 2, # <--------- This defines the number of
-                        #            parallel independent processes.
-                        #            Moreover, adding this line activates
-                        #            the use of the simple workload manager.
+        'elmer_n_threads': elmer_n_threads,  # <------ This defines the number of omp threads per task
+        'n_workers': 1,               # <--------- This defines the number of
+                                      #            parallel independent processes.
+                                      #            Setting this larger than 1 activates
+                                      #            the use of the simple workload manager.
     }
-    if use_sbatch:  # if simulation is run in a HPC system, sbatch_parameters can be given here
+    if use_sbatch:
+        # if simulation is run in a HPC system, sbatch_parameters can be given here
+        # The values given here are all per simulation (except n_workers)
+        # and the real allocation size is calculated and requested automatically.
+
+        # If a job submission fails with "sbatch: error: Batch job submission failed: "it is most probably
+        # due to reserving too much memory per node or exceeding partitions time limit.
+        # You might need to check the remote for the limits and adjust these settings to fit the restrictions
         workflow['sbatch_parameters'] = {
-            '--job-name':sim_parameters['name'],
-            '--account':'project_0',
-            '--partition':'test',
-            '--time':'00:10:00',
-            '--ntasks':'40',
-            '--cpus-per-task':'1',
-            '--mem-per-cpu':'4000',
+            '--account':'project_0',    # <-- Remote account for billing
+            '--partition':'test',       # <-- Slurm partition used, options depend on the remote
+            'n_workers': 2,             # <-- Number of parallel simulations, the total amount of resources requested
+                                        #     is `n_workers` times the definitions below for single simulation
+            'max_threads_per_node': 40, # <-- Max number of tasks allowed on a node. dependent on the used remote host
+                                        #     Automatically divides the tasks to as few nodes as possible
+            'elmer_n_processes':10,     # <-- Number of tasks per simulation
+            'elmer_n_threads':1,        # <-- Number of threads per task
+            'elmer_mem':'32G',          # <-- Amount of memory per simulation
+            'elmer_time':'00:05:00',    # <-- Maximum time per simulation
+
+            'gmsh_n_threads':10,        # <-- Threads per simulation
+            'gmsh_mem':'32G',           # <-- Allocated memory per simulation
+            'gmsh_time':'00:05:00',     # <-- Maximum time per simulation
         }
 
 else:

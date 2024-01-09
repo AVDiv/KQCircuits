@@ -21,6 +21,7 @@ import math
 from kqcircuits.util.parameters import Param, pdt
 from kqcircuits.qubits.qubit import Qubit
 from kqcircuits.pya_resolver import pya
+from kqcircuits.util.refpoints import JunctionSimPort
 
 
 class Swissmon(Qubit):
@@ -76,7 +77,7 @@ class Swissmon(Qubit):
 
         # Location for connecting the waveguides to
         port_shape = pya.DBox(-a / 2, 0, a / 2, b)
-        port_region = pya.Region([port_shape.to_itype(self.layout.dbu)])
+        port_region = pya.Region(port_shape.to_itype(self.layout.dbu))
 
         if l > 0:
             # Horseshoe opened to below
@@ -98,7 +99,7 @@ class Swissmon(Qubit):
             shoe.insert_hole(shoe_points[::-1])
 
             # convert to range and recover CPW port
-            shoe_region = pya.Region([shoe.to_itype(self.layout.dbu)])
+            shoe_region = pya.Region(shoe.to_itype(self.layout.dbu))
             shoe_region.round_corners(self.island_r / self.layout.dbu, self.island_r / self.layout.dbu, self.n)
             shoe_region2 = shoe_region - port_region
 
@@ -195,3 +196,7 @@ class Swissmon(Qubit):
         # Probepoint
         probepoint = pya.DPoint(0, 0)
         self.refpoints["probe_qb_c"] = probepoint
+
+    @classmethod
+    def get_sim_ports(cls, simulation):
+        return [JunctionSimPort()]

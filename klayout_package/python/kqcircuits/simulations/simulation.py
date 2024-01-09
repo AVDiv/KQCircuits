@@ -20,7 +20,7 @@ import abc
 import ast
 from typing import List
 
-from autologging import logged
+import logging
 
 from kqcircuits.defaults import default_faces
 from kqcircuits.elements.airbridges.airbridge import Airbridge
@@ -28,16 +28,19 @@ from kqcircuits.elements.element import Element
 from kqcircuits.elements.waveguide_composite import WaveguideComposite, Node
 from kqcircuits.pya_resolver import pya
 from kqcircuits.simulations.port import Port, InternalPort, EdgePort
-from kqcircuits.util.geometry_helper import region_with_merged_polygons, region_with_merged_points
+from kqcircuits.util.geometry_helper import region_with_merged_polygons, region_with_merged_points, \
+    match_points_on_edges
 from kqcircuits.util.parameters import Param, pdt, add_parameters_from
 from kqcircuits.simulations.export.util import find_edge_from_point_in_cell
 from kqcircuits.simulations.export.util import get_enclosing_polygon
 from kqcircuits.util.groundgrid import make_grid
 from kqcircuits.junctions.sim import Sim
+from kqcircuits.util.library_helper import load_libraries
 
 
 simulation_layer_dict = dict()
 
+load_libraries()  # allows parameter overrides from defaults.py
 
 def get_simulation_layer_by_name(layer_name):
     """Returns layer info of given name. If layer doesn't exist, a new layer is created.
@@ -47,7 +50,6 @@ def get_simulation_layer_by_name(layer_name):
     return simulation_layer_dict[layer_name]
 
 
-@logged
 @add_parameters_from(Element)
 @add_parameters_from(Sim, "junction_total_length")
 class Simulation:
@@ -114,17 +116,24 @@ class Simulation:
 
     use_ports = Param(pdt.TypeBoolean, "Turn off to disable all ports (for debugging)", True)
     use_internal_ports = Param(pdt.TypeBoolean, "Use internal (lumped) ports. The alternative is wave ports.", True)
-    port_size = Param(pdt.TypeDouble, "Width and height of wave ports", 400.0, unit="µm")
+    port_size = Param(pdt.TypeDouble, "Width and height of wave ports", 400.0, unit="µm",
+                      docstring="The port size can also be set as a list specifying the extensions from the center of "
+                                "the port to left, right, down and up, respectively.")
 
     upper_box_height = Param(pdt.TypeDouble, "Height of vacuum above top substrate", 1000.0, unit="µm")
     lower_box_height = Param(pdt.TypeDouble, "Height of vacuum below bottom substrate", 0, unit="µm",
                              docstring="Set > 0 to start face counting from substrate bottom layer.")
+    fixed_level_stackup = Param(pdt.TypeBoolean, "Use fixed level multi-face stack-up", True)
     face_stack = Param(pdt.TypeList, "Face IDs on the substrate surfaces from bottom to top", ["1t1"],
                        docstring="The parameter can be set as list of lists to enable multi-face stack-up on substrate "
                                  "surfaces. Set term to empty list to not have metal on the surface.")
     substrate_height = Param(pdt.TypeList, "Height of the substrates", [550.0, 375.0], unit="[µm]",
                              docstring="The value can be scalar or list of scalars. Set as list to use individual "
                                        "substrate heights from bottom to top.")
+    substrate_box = Param(pdt.TypeList, "x and y dimensions of substrates", [None],
+                          docstring="Set as a list of pya.DBox objects to give substrate dimensions individually from "
+                                    "bottom to top. If a value in the list is not pya.DBox object, the corresponding"
+                                    "substrate covers fully the general boundary box.")
     substrate_material = Param(pdt.TypeList, "Material of the substrates.", ['silicon'],
                                docstring="Value can be string or list of strings. Use only keywords introduced in "
                                          "material_dict. Set as list to use individual materials from bottom to top.")
@@ -142,7 +151,8 @@ class Simulation:
     airbridge_height = Param(pdt.TypeDouble, "Height of airbridges.", 3.4, unit="µm")
     metal_height = Param(pdt.TypeList, "Height of metal sheet on each face.", [0.0], unit="µm")
     dielectric_height = Param(pdt.TypeList, "Height of insulator dielectric on each face.", [0.0], unit="µm")
-    dielectric_material = Param(pdt.TypeList, "Material of insulator dielectric on each face.", ['silicon'], unit="µm")
+    dielectric_material = Param(pdt.TypeList, "Material of insulator dielectric on each face.", ['silicon'], unit="µm",
+                                docstring="Use only keywords introduced in material_dict.")
 
     waveguide_length = Param(pdt.TypeDouble, "Length of waveguide stubs or distance between couplers and waveguide "
                                              "turning point", 100, unit="µm")
@@ -150,8 +160,19 @@ class Simulation:
     vertical_over_etching = Param(pdt.TypeDouble, "Vertical over-etching into substrates at gaps.", 0, unit="μm")
     hollow_tsv = Param(pdt.TypeBoolean, "Make TSVs hollow with vacuum inside and thin metal boundary.", False)
 
-    participation_sheet_distance = Param(pdt.TypeDouble, "Distance to non-model TLS interface sheet.", 0.0, unit="µm")
-    participation_sheet_thickness = Param(pdt.TypeDouble, "Thickness of non-model TLS interface sheet.", 0.0, unit="µm")
+    metal_edge_region_dimensions = Param(pdt.TypeList, "Dimensions of metal edge region", [], unit="µm",
+                                         docstring="Metal edge region is disabled if the list is empty. The terms in "
+                                                   "the list correspond to expansion dimensions into direction of gap, "
+                                                   "vacuum, metal, and substrate, respectively. The implementation "
+                                                   "uses the modulo operator in indexing, so one can set the list as "
+                                                   "[r] meaning that r is the expansion to all directions, or set as "
+                                                   "[r_lat, r_vert] to separate lateral and vertical expansions.")
+    tls_layer_thickness = Param(pdt.TypeList, "Thickness of TLS interface layers (MA, MS, and SA, respectively)", [0.0],
+                                unit="µm")
+    tls_layer_material = Param(pdt.TypeList, "Materials of TLS interface layers (MA, MS, and SA, respectively)", None,
+                               docstring="Use None to create non-model layers. Otherwise, use only keywords "
+                                         "introduced in material_dict.")
+    tls_sheet_approximation = Param(pdt.TypeBoolean, "Approximate TLS interface layers as sheets", False)
 
     minimum_point_spacing = Param(pdt.TypeDouble, "Tolerance for merging adjacent points in polygon", 0.01, unit="µm")
     polygon_tolerance = Param(pdt.TypeDouble, "Tolerance for merging adjacent polygons in a layer", 0.004, unit="µm")
@@ -181,7 +202,7 @@ class Simulation:
         if layout is None or not isinstance(layout, pya.Layout):
             error_text = "Cannot create simulation with invalid or nil layout."
             error = ValueError(error_text)
-            self.__log.exception(error_text, exc_info=error)
+            logging.error(error_text)
             raise error
 
         self.layout = layout
@@ -257,6 +278,13 @@ class Simulation:
         """Return self.face_stack forced to be list of lists"""
         return [f if isinstance(f, list) else [f] for f in self.face_stack]
 
+    def _face_box(self, i):
+        """ Return the boundary box for given face number.
+        Boundary box is the intersection of the global boundary box and the substrate x-y-dimension box.
+        """
+        box = self.ith_value(self.substrate_box, (i + int(self.lower_box_height <= 0)) // 2)
+        return self.box & box if isinstance(box, pya.DBox) else self.box
+
     @staticmethod
     def ith_value(list_or_constant, i):
         """ Helper function to return value from list or constant corresponding to the ordinal number i.
@@ -303,14 +331,25 @@ class Simulation:
                 base_z = dielectric_z
         return z_dict
 
-    def merged_region_from_layer(self, face_id, layer_name, expansion=0.0):
-        """ Returns a `Region` containing all geometry from a specified layer merged together """
+    def region_from_layer(self, face_id, layer_name):
+        """ Returns a `Region` containing all geometry from a specified layer """
         face_layers = default_faces[face_id] if face_id in default_faces else dict()
         if layer_name in face_layers:
-            return region_with_merged_polygons(
-                pya.Region(self.cell.begin_shapes_rec(self.layout.layer(face_layers[layer_name]))),
-                tolerance=self.polygon_tolerance / self.layout.dbu, expansion=expansion / self.layout.dbu)
+            return pya.Region(self.cell.begin_shapes_rec(self.layout.layer(face_layers[layer_name])))
         return pya.Region()
+
+    def simplified_region(self, region, expansion=0.0):
+        """ Returns a region that is simplified by functions region_with_merged_polygons and region_with_merged_points.
+        More precisely:
+        - Merges polygons ignoring gaps that are smaller than self.polygon_tolerance
+        - Expands/shrinks region by amount given by 'expansion'
+        - In each polygon of the region, removes points that are closer to other points than self.minimum_point_spacing
+        """
+        return region_with_merged_points(
+            region_with_merged_polygons(region,
+                                        tolerance=self.polygon_tolerance / self.layout.dbu,
+                                        expansion=expansion / self.layout.dbu),
+            tolerance=self.minimum_point_spacing / self.layout.dbu)
 
     def insert_layer(self, region, layer_name, **params):
         """Merges points in the `region` and inserts the result in a target layer. The params are forwarded to the
@@ -320,82 +359,77 @@ class Simulation:
             return  # ignore the layer
         layer = get_simulation_layer_by_name(layer_name)
         self.cell.shapes(self.layout.layer(layer)).insert(region)
-        self.layers[layer_name] = {'layer': layer.layer, **params}
+        if (pya.Region(self.box.to_itype(self.layout.dbu)) - region).is_empty():
+            self.layers[layer_name] = params  # region cover self.box totally, so set layer without shape
+        else:
+            self.layers[layer_name] = {'layer': layer.layer, **params}
 
-    @staticmethod
-    def add_layer_to_splitter(splitter, region, layer_name, **params):
-        """Add layer to the splitter, which splits the region into different z-levels. The params are forwarded to
-        the 'self.layers' dictionary.
+    def insert_stacked_up_layers(self, stack, z0):
+        """Produces the layer stack-up and adds the layers into 'self.layers' dictionary.
+        Each layer is split into sub-layers by their z-level.
 
-        Before calling first time, the splitter should be set as empty splitter, which is a list of empty dictionary and
-        empty list, that is [dict(), []].
+        Args:
+            stack: list of layers in form of tuples containing (region, layer name, thickness, material)
+            z0: the base z-level for the layer stack-up
         """
-        if region.is_empty():
-            return  # ignore the layer
+        levels = dict()  # existing z-levels based on layers underneath (z-level as key and region as value)
+        for region, layer_name, thickness, material in stack:
+            if region.is_empty():
+                continue
 
-        # the first term in splitter is dictionary of parameters
-        splitter[0][layer_name] = params
-
-        # the second term in splitter is list of tuples containing (reg, list of keys)
-        region_and_keys = []
-        left_region = region.dup()
-        for reg, keys in splitter[1]:
-            intersection = reg & region
-            if not intersection.is_empty():
-                left_region -= intersection
-                subtraction = reg - intersection
+            # Split the layer into z-levels
+            region_levels = dict()  # the layer region divided into z-levels
+            non_region_levels = dict()  # the z-levels outside the layer region
+            sum_reg = pya.Region()
+            for z, reg in levels.items():
+                intersection = reg & region
+                if not intersection.is_empty():
+                    region_levels[z] = intersection
+                subtraction = reg - region
                 if not subtraction.is_empty():
-                    region_and_keys.append((subtraction, keys))
-                region_and_keys.append((intersection, keys + [layer_name]))
-            else:
-                region_and_keys.append((reg, keys))
-        if not left_region.is_empty():
-            region_and_keys.append((left_region, [layer_name]))
-        splitter[1] = region_and_keys
+                    non_region_levels[z] = subtraction
+                sum_reg += reg
+            on_base_level = region - sum_reg
+            if not on_base_level.is_empty():
+                region_levels[round(z0, 12)] = on_base_level
 
-    def insert_splitter_layers(self, splitter, z0):
-        """Inserts the layers in the splitter to the 'self.layers' dictionary. Each layer are split into sub-layers
-        by their z-level. Parameter 'z0' is the base z-level for layer stack-up."""
-        for key, params in splitter[0].items():
-            z_region_map = dict()
-            for reg, keys in splitter[1]:
-                if key in keys:
-                    # round z-value to avoid differences due to floating point number inaccuracy
-                    z = round(sum(splitter[0][i].get('thickness', 0.0) for i in keys[0: keys.index(key)]), 12)
-                    if z not in z_region_map:
-                        z_region_map[z] = pya.Region()
-                    z_region_map[z] += reg
+            # Create collective layer for klayout visualization if the layer is split
+            if len(region_levels) > 1:
+                self.cell.shapes(self.layout.layer(get_simulation_layer_by_name(layer_name))).insert(region)
 
-            # Insert combined region if there are multiple levels
-            if len(z_region_map) > 1:
-                region = pya.Region()
-                for reg in z_region_map.values():
-                    region += reg
-                self.cell.shapes(self.layout.layer(get_simulation_layer_by_name(key))).insert(region.merged())
+            # Apply parts of divided layers into self.layers
+            for i, (z, reg) in enumerate(sorted(region_levels.items())):
+                self.insert_layer(reg, f'{layer_name}_{i}' if len(region_levels) > 1 else layer_name,
+                                  z=z, thickness=thickness, material=material)
 
-            # Insert split parts of the region and add layer
-            for i, (z, reg) in enumerate(z_region_map.items()):
-                layer_name = key + f'_{i}' if len(z_region_map) > 1 else key
-                layer = get_simulation_layer_by_name(layer_name)
-                self.cell.shapes(self.layout.layer(layer)).insert(reg.merged())
-                self.layers[layer_name] = {'layer': layer.layer, 'z': z0 + z, **params}
+            # Update existing z-levels dictionary
+            if thickness != 0.0:
+                levels = non_region_levels
+                for z, reg in region_levels.items():
+                    top_z = round(z + thickness, 12)
+                    if top_z in levels:
+                        levels[top_z] += reg
+                    else:
+                        levels[top_z] = reg
 
     def insert_layers_between_faces(self, i, opp_i, layer_name, **params):
         """Helper function to be used to produce indium bumps and TSVs"""
         z = self.face_z_levels()
-        mps = self.minimum_point_spacing / self.layout.dbu
         face_stack = self.face_stack_list_of_lists()
-        box_region = pya.Region(self.box.to_itype(self.layout.dbu))
+        box = self._face_box(i)
+        if 0 <= opp_i < len(face_stack):
+            box = box & self._face_box(opp_i)
+        box_region = pya.Region(box.to_itype(self.layout.dbu))
         sum_region = pya.Region()
         for face_id in face_stack[i]:
-            region = region_with_merged_points(self.merged_region_from_layer(face_id, layer_name) & box_region, mps)
+            region = self.simplified_region(self.region_from_layer(face_id, layer_name) & box_region)
             if region.is_empty():
                 continue
             sum_region += region
             if 0 <= opp_i < len(face_stack):
                 for opp_id in face_stack[opp_i]:
-                    common_region = region & region_with_merged_points(
-                        self.merged_region_from_layer(opp_id, layer_name) & box_region, mps)
+                    common_region = region & self.simplified_region(
+                        self.region_from_layer(opp_id, layer_name) & box_region)
                     if common_region.is_empty():
                         continue
                     if f'{opp_id}_{face_id}_{layer_name}' not in self.layers:  # if statement is to avoid duplicates
@@ -424,23 +458,22 @@ class Simulation:
         """
 
         z = self.face_z_levels()
-        mps = self.minimum_point_spacing / self.layout.dbu
         face_stack = self.face_stack_list_of_lists()
         for i, face_ids in enumerate(face_stack):
             sign = (-1) ** (i + int(self.lower_box_height > 0))
-            splitter = [dict(), []]
+            stack = []
             dielectric_material = self.ith_value(self.dielectric_material, i)
 
             # insert TSVs and indium bumps
             tsv_params = {'edge_material': 'pec'} if self.hollow_tsv else {'material': 'pec'}
             tsv_region = self.insert_layers_between_faces(i, i - sign, "through_silicon_via", **tsv_params)
-            self.insert_layers_between_faces(i, i + sign, "indium_bump", material='pec')
+            bump_region = self.insert_layers_between_faces(i, i + sign, "indium_bump", material='pec')
+            ground_box_region = pya.Region(self._face_box(i).to_itype(self.layout.dbu))
 
             for j, face_id in enumerate(face_ids):
-                ground_box_region = pya.Region(self.box.to_itype(self.layout.dbu))
-                metal_gap_region = self.merged_region_from_layer(face_id, "base_metal_gap_wo_grid", self.over_etching)
-                metal_add_region = self.merged_region_from_layer(face_id, "base_metal_addition", -self.over_etching)
-                lithography_region = metal_gap_region - metal_add_region
+                metal_gap_region = self.region_from_layer(face_id, "base_metal_gap_wo_grid")
+                metal_add_region = self.region_from_layer(face_id, "base_metal_addition")
+                lithography_region = self.simplified_region(metal_gap_region - metal_add_region, self.over_etching)
 
                 if lithography_region.is_empty():
                     signal_region = pya.Region()
@@ -458,12 +491,12 @@ class Simulation:
                         for port in self.ports:
                             if self.face_ids[port.face] == face_id:
                                 if hasattr(port, 'ground_location'):
-                                    v_unit = port.signal_location-port.ground_location
-                                    v_unit = v_unit/v_unit.abs()
-                                    signal_loc = (port.signal_location+mps*v_unit).to_itype(self.layout.dbu)
+                                    v_mps = port.signal_location-port.ground_location
+                                    v_mps = self.minimum_point_spacing * v_mps / v_mps.abs()
+                                    signal_loc = (port.signal_location + v_mps).to_itype(self.layout.dbu)
                                     ground_region -= ground_region.interacting(pya.Edge(signal_loc, signal_loc))
 
-                                    ground_loc = (port.ground_location-mps*v_unit).to_itype(self.layout.dbu)
+                                    ground_loc = (port.ground_location - v_mps).to_itype(self.layout.dbu)
                                     ground_region += signal_region.interacting(pya.Edge(ground_loc, ground_loc))
                                 else:
                                     signal_loc = port.signal_location.to_itype(self.layout.dbu)
@@ -472,58 +505,143 @@ class Simulation:
                     ground_region.merge()
                     signal_region -= ground_region
 
-                dielectric_region = ground_box_region - self.merged_region_from_layer(face_id, "dielectric_etch")
+                dielectric_region = ground_box_region - self.simplified_region(
+                    self.region_from_layer(face_id, "dielectric_etch"))
 
-                # Merge points of each region to optimize the simulations. Subtract TSV region.
-                signal_region = region_with_merged_points(signal_region, mps) - tsv_region
-                ground_region = region_with_merged_points(ground_region, mps) - tsv_region
-                dielectric_region = region_with_merged_points(dielectric_region, mps) - tsv_region
-                gap_region = ground_box_region - signal_region - ground_region
+                # Create gap and etch regions and update metals
+                gap_region = ground_box_region - signal_region - ground_region  # excluding ground grid
                 if self.with_grid:
                     ground_region -= self.ground_grid_region(face_id)
+                etch_region = ground_box_region - signal_region - ground_region  # including ground grid
+                signal_region -= tsv_region
+                ground_region -= tsv_region
+                dielectric_region -= tsv_region
 
-                # Insert signal, ground, and dielectric layers to model via splitter
-                if j == 0 and self.vertical_over_etching > 0.0:
-                    self.add_layer_to_splitter(splitter, ground_box_region - signal_region - ground_region,
-                                               face_id + "_etch", thickness=-sign * self.vertical_over_etching)
-
+                # Insert signal, ground and dielectric layers
                 metal_thickness = z[face_id][1] - z[face_id][0]
-                self.add_layer_to_splitter(splitter, signal_region, face_id + "_signal", thickness=metal_thickness,
-                                           material='pec')
-                self.add_layer_to_splitter(splitter, ground_region, face_id + "_ground", thickness=metal_thickness,
-                                           material='pec')
                 dielectric_thickness = z[face_id][2] - z[face_id][1]
-                if dielectric_thickness != 0.0:
-                    self.add_layer_to_splitter(splitter, dielectric_region, face_id + "_dielectric",
-                                               thickness=dielectric_thickness,
-                                               material=self.ith_value(dielectric_material, j))
+                if self.fixed_level_stackup:
+                    # Use fixed level stack-up
+                    self.insert_layer(signal_region, face_id + "_signal", z=z[face_id][0], thickness=metal_thickness,
+                                      material='pec')
+                    self.insert_layer(ground_region, face_id + "_ground", z=z[face_id][0], thickness=metal_thickness,
+                                      material='pec')
+                    if dielectric_thickness != 0.0:
+                        self.insert_layer(ground_box_region - dielectric_region, face_id + "_via", z=z[face_id][1],
+                                          thickness=dielectric_thickness, material='pec')
+                        subtract = [n for n in [face_id + "_signal", face_id + "_ground", face_id + "_via"]
+                                    if n in self.layers and self.layers[n].get('thickness', 0.0) != 0.0]
+                        self.insert_layer(ground_box_region, face_id + "_dielectric", z=z[face_id][0],
+                                          thickness=z[face_id][2] - z[face_id][0],
+                                          material=self.ith_value(dielectric_material, j),
+                                          **({'subtract': subtract} if subtract else dict()))
 
-                # Insert gap layer only on the first face of the stack-up (no material)
+                else:
+                    # Use stack to produce drop-down stack-up
+                    stack.append((signal_region, face_id + "_signal", metal_thickness, 'pec'))
+                    stack.append((ground_region, face_id + "_ground", metal_thickness, 'pec'))
+                    if dielectric_thickness != 0.0:
+                        stack.append((dielectric_region, face_id + "_dielectric", dielectric_thickness,
+                                      self.ith_value(dielectric_material, j)))
+
+                # Insert gap and etch layers only on the first face of the stack-up (no material)
                 if j == 0:
                     gap_z = z[face_id][0] - sign * self.vertical_over_etching
+                    if self.vertical_over_etching > 0.0:
+                        self.insert_layer(etch_region, face_id + "_etch", z=gap_z,
+                                          thickness=sign * self.vertical_over_etching)
                     self.insert_layer(gap_region, face_id + "_gap", z=gap_z, thickness=z[face_id][1] - gap_z)
 
                 # Insert airbridges
                 bridge_z = sign * self.airbridge_height
-                self.insert_layer(self.merged_region_from_layer(face_id, "airbridge_flyover") & ground_box_region,
-                                  face_id + "_airbridge_flyover", z=z[face_id][1] + bridge_z, thickness=0.0,
+                ab_flyover_region = self.simplified_region(self.region_from_layer(face_id, "airbridge_flyover")
+                                                           ) & ground_box_region
+                self.insert_layer(ab_flyover_region, face_id + "_airbridge_flyover", z=z[face_id][1] + bridge_z,
+                                  thickness=0.0, material='pec')
+                ab_pads_region = self.simplified_region(self.region_from_layer(face_id, "airbridge_pads")
+                                                        ) & ground_box_region
+                self.insert_layer(ab_pads_region, face_id + "_airbridge_pads", z=z[face_id][1], thickness=bridge_z,
                                   material='pec')
-                self.insert_layer(self.merged_region_from_layer(face_id, "airbridge_pads") & ground_box_region,
-                                  face_id + "_airbridge_pads", z=z[face_id][1], thickness=bridge_z, material='pec')
 
-                # Insert participation layers (no material)
-                if j == 0 and self.participation_sheet_distance + self.participation_sheet_thickness > 0.0:
-                    self.insert_layer(signal_region + ground_region, face_id + "_layerMA",
-                                      z=z[face_id][1] + sign * self.participation_sheet_distance,
-                                      thickness=sign * self.participation_sheet_thickness)
-                    self.insert_layer(signal_region + ground_region, face_id + "_layerMS",
-                                      z=z[face_id][0] - sign * self.participation_sheet_distance,
-                                      thickness=-sign * self.participation_sheet_thickness)
-                    self.insert_layer(ground_box_region - signal_region - ground_region, face_id + "_layerSA",
-                                      z=z[face_id][0] + sign * self.participation_sheet_distance,
-                                      thickness=sign * self.participation_sheet_thickness)
+            self.insert_stacked_up_layers(stack, z[i + 1])
 
-            self.insert_splitter_layers(splitter, z[i + 1])
+            # Rest of the features are not available with multilayer stack-up
+            if len(face_ids) != 1:
+                continue
+            face_id = face_ids[0]
+
+            # Create metal edge region
+            metal_region = signal_region + ground_region
+            me_region = pya.Region()
+            n_terms = len(self.metal_edge_region_dimensions)
+            if n_terms > 0:
+                r_gap = float(self.metal_edge_region_dimensions[0])
+                r_metal = float(self.metal_edge_region_dimensions[2 % n_terms])
+                me_region = (metal_region.sized(r_gap / self.layout.dbu) & etch_region.sized(r_metal / self.layout.dbu)
+                             & ground_box_region)
+
+            # Insert TLS interface layers
+            for layer_num, layer_id in enumerate(['MA', 'MS', 'SA']):
+                layer_name = face_id + "_layer" + layer_id
+                layer_z = [z[face_id][1], z[face_id][0], z[face_id][0] - sign * self.vertical_over_etching][layer_num]
+                thickness = float(self.ith_value(self.tls_layer_thickness, layer_num))
+                sheet_thickness = float(self.ith_value(self.tls_layer_thickness, layer_num))
+                signed_thickness = [sign, -sign, -sign][layer_num] * thickness
+                material = self.ith_value(self.tls_layer_material, layer_num)
+                if self.tls_sheet_approximation:
+                    params = {'z': layer_z + signed_thickness,
+                              'thickness': 0.0,
+                              'sheet thickness': sheet_thickness,
+                              **(dict() if material is None else {'sheet material': material})
+                              }
+                elif thickness != 0.0:
+                    params = {'z': layer_z,
+                              'thickness': signed_thickness,
+                              **(dict() if material is None else {'material': material})}
+
+                    # Insert wall layer
+                    wall_height = [z[face_id][0] - z[face_id][1], 0.0, sign * self.vertical_over_etching][layer_num]
+                    if wall_height != 0.0:
+                        wall_region = metal_region.sized(thickness / self.layout.dbu) & etch_region
+                        self.insert_layer(wall_region, layer_name + "wall", z=layer_z, thickness=wall_height,
+                                          **(dict() if material is None else {'material': material}))
+                else:
+                    continue
+
+                # Insert layer
+                layer_region = [metal_region.sized(thickness / self.layout.dbu) & (metal_region + etch_region -
+                                                                                   bump_region - ab_pads_region),
+                                metal_region, etch_region][layer_num]
+                me_layer_region = me_region & layer_region
+                if me_layer_region.is_empty():
+                    self.insert_layer(layer_region, layer_name, **params)
+                else:
+                    self.insert_layer(me_layer_region, layer_name + "mer", **params)
+                    self.insert_layer(layer_region - me_region, layer_name, **params)
+
+            # Insert substrate and vacuum inside metal edge region
+            if not me_region.is_empty():
+                r_vacuum = float(self.metal_edge_region_dimensions[1 % n_terms])
+                r_substrate = float(self.metal_edge_region_dimensions[3 % n_terms])
+
+                if r_substrate != 0.0:
+                    layers = ['_etch', '_through_silicon_via']
+                    cond_layers = ['_layerMSmer', '_layerSAmer']
+                    subtract = [k for k, v in self.layers.items() if face_id + '_' in k and
+                                (any(k.endswith(t) for t in layers) or
+                                 (any(k.endswith(t) for t in cond_layers) and v.get('material', None) is not None))]
+                    self.insert_layer(me_region, face_id + "_substratemer", z=z[face_id][0] - sign * r_substrate,
+                                      thickness=sign * r_substrate,
+                                      material=self.ith_value(self.substrate_material,
+                                                              (i + int(self.lower_box_height <= 0)) // 2),
+                                      **({'subtract': subtract} if subtract else dict()))
+
+                if r_vacuum + r_substrate != 0.0:
+                    subtract = [n for n, v in self.layers.items() if face_id + '_' in n and
+                                v.get('material', None) is not None and v.get('thickness', 0.0) != 0.0]
+                    self.insert_layer(me_region, face_id + "_vacuummer", z=z[face_id][0] - sign * r_substrate,
+                                      thickness=sign * (r_vacuum + r_substrate), material='vacuum',
+                                      **({'subtract': subtract} if subtract else dict()))
 
         # Insert substrates
         for i in range(int(self.lower_box_height > 0), len(face_stack) + 1, 2):
@@ -535,25 +653,31 @@ class Simulation:
                 faces += face_stack[i-1]
 
             # find layers to be subtracted from substrate
-            layers = ['etch', 'through_silicon_via']
-            subtract = [k for k in self.layers if any(t in k for t in layers) and any(t in k for t in faces)]
+            layers = ['_etch', '_through_silicon_via']
+            cond_layers = ['_layerMS', '_layerSA', '_layerMSmer', '_layerSAmer', '_substratemer']
+            subtract = [k for k, v in self.layers.items() if any(t + '_' in k for t in faces) and
+                        (any(k.endswith(t) for t in layers) or
+                         (any(k.endswith(t) for t in cond_layers) and v.get('material', None) is not None))]
 
             # insert substrate layer
-            name = 'substrate' if i < 2 else f'substrate_{i // 2}'
-            self.layers[name] = {'z': z[i], 'thickness': z[i + 1] - z[i],
-                                 'material': self.ith_value(self.substrate_material, i // 2),
-                                 **({'subtract': subtract} if subtract else dict())}
+            name = 'substrate' if len(face_stack) - int(self.lower_box_height > 0) < 2 else f'substrate_{i // 2}'
+            self.insert_layer(pya.Region(self._face_box(i).to_itype(self.layout.dbu)), name, z=z[i],
+                              thickness=z[i + 1] - z[i], material=self.ith_value(self.substrate_material, i // 2),
+                              **({'subtract': subtract} if subtract else dict()))
 
         # Insert vacuum
         subtract = [n for n, v in self.layers.items() if v.get('material', None) is not None and
                     v.get('thickness', 0.0) != 0.0]
-        self.layers['vacuum'] = {'z': z[0], 'thickness': z[-1] - z[0], 'material': 'vacuum', 'subtract': subtract}
+        self.insert_layer(pya.Region(self.box.to_itype(self.layout.dbu)), 'vacuum', z=z[0], thickness=z[-1] - z[0],
+                          material='vacuum', **({'subtract': subtract} if subtract else dict()))
+
+        # Eliminate gaps and overlaps caused by transformation to simple_polygon
+        match_points_on_edges(self.cell, self.layout, [get_simulation_layer_by_name(n) for n in self.layers])
 
     def ground_grid_region(self, face_id):
         """Returns region of ground grid for the given face id."""
-        box = self.ground_grid_box & self.box  # restrict self.ground_grid_box inside self.box
-        grid_area = box * (1 / self.layout.dbu)
-        protection = self.merged_region_from_layer(face_id, "ground_grid_avoidance")
+        grid_area = self.ground_grid_box * (1 / self.layout.dbu)
+        protection = self.simplified_region(self.region_from_layer(face_id, "ground_grid_avoidance"))
         grid_mag_factor = 1
         return make_grid(grid_area, protection,
                          grid_step=10 * (1 / self.layout.dbu) * grid_mag_factor,
@@ -573,7 +697,7 @@ class Simulation:
                 The waveguide will start from `location` and go towards `towards`
             port_nr (int): Port index for the simulation engine starting from 1
             side (str): Indicate on which edge the port should be located. Ignored for internal ports.
-                Must be one of `left`, `right`, `top` or `bottom`
+                Must be one of `left`, `right`, `top` or `bottom`. If `None` then direction is inferred from `towards`.
             use_internal_ports (bool, optional): if True, ports will be inside the simulation. If False, ports will be
                 brought out to an edge of the box, determined by `side`.
                 Defaults to the value of the `use_internal_ports` parameter
@@ -636,8 +760,9 @@ class Simulation:
             ]
         else:
             corner_point = location + (waveguide_length + turn_radius) * direction
-            if side is None:
-                raise ValueError("Waveport side in the arguments of `produce_waveguide_to_ports` is not specified")
+            if side is None:  # infer EdgePort location if not given
+                d = towards - location
+                side = (("left", "right"), ("bottom", "top"))[abs(d.x) < abs(d.y)][d.x + d.y > 0]
             port_edge_point = {
                 "left": pya.DPoint(self.box.left, corner_point.y),
                 "right": pya.DPoint(self.box.right, corner_point.y),
@@ -722,34 +847,36 @@ class Simulation:
                 # Define a 3D polygon for each port
                 if isinstance(port, EdgePort):
 
-                    port_z0 = max(z[face_id][0] - simulation.port_size / 2, z[0])
-                    port_z1 = min(z[face_id][0] + simulation.port_size / 2, z[-1])
+                    ps = (simulation.port_size if isinstance(simulation.port_size, list)
+                          else [simulation.port_size / 2] * 4)
+
+                    port_z0 = max(z[face_id][0] - ps[2], z[0])
+                    port_z1 = min(z[face_id][0] + ps[3], z[-1])
 
                     # Determine which edge this port is on
-                    if (port.signal_location.x == simulation.box.left
-                            or port.signal_location.x == simulation.box.right):
-                        port_y0 = max(port.signal_location.y - simulation.port_size / 2, simulation.box.bottom)
-                        port_y1 = min(port.signal_location.y + simulation.port_size / 2, simulation.box.top)
-                        p_data['polygon'] = [
-                            [port.signal_location.x, port_y0, port_z0],
-                            [port.signal_location.x, port_y1, port_z0],
-                            [port.signal_location.x, port_y1, port_z1],
-                            [port.signal_location.x, port_y0, port_z1]
-                        ]
-
-                    elif (port.signal_location.y == simulation.box.top
-                          or port.signal_location.y == simulation.box.bottom):
-                        port_x0 = max(port.signal_location.x - simulation.port_size / 2, simulation.box.left)
-                        port_x1 = min(port.signal_location.x + simulation.port_size / 2, simulation.box.right)
-                        p_data['polygon'] = [
-                            [port_x0, port.signal_location.y, port_z0],
-                            [port_x1, port.signal_location.y, port_z0],
-                            [port_x1, port.signal_location.y, port_z1],
-                            [port_x0, port.signal_location.y, port_z1]
-                        ]
-
+                    port_x0 = port_x1 = port.signal_location.x
+                    port_y0 = port_y1 = port.signal_location.y
+                    if abs(port.signal_location.x - simulation.box.left) < self.layout.dbu:
+                        port_y0 = max(port.signal_location.y - ps[1], simulation.box.bottom)
+                        port_y1 = min(port.signal_location.y + ps[0], simulation.box.top)
+                    elif abs(port.signal_location.x - simulation.box.right) < self.layout.dbu:
+                        port_y0 = max(port.signal_location.y - ps[0], simulation.box.bottom)
+                        port_y1 = min(port.signal_location.y + ps[1], simulation.box.top)
+                    elif abs(port.signal_location.y - simulation.box.bottom) < self.layout.dbu:
+                        port_x0 = max(port.signal_location.x - ps[0], simulation.box.left)
+                        port_x1 = min(port.signal_location.x + ps[1], simulation.box.right)
+                    elif abs(port.signal_location.y - simulation.box.top) < self.layout.dbu:
+                        port_x0 = max(port.signal_location.x - ps[1], simulation.box.left)
+                        port_x1 = min(port.signal_location.x + ps[0], simulation.box.right)
                     else:
                         raise ValueError(f"Port {port.number} is an EdgePort but not on the edge of the simulation box")
+
+                    p_data['polygon'] = [
+                        [port_x0, port_y0, port_z0],
+                        [port_x1, port_y1, port_z0],
+                        [port_x1, port_y1, port_z1],
+                        [port_x0, port_y0, port_z1]
+                    ]
 
                 elif isinstance(port, InternalPort):
                     if hasattr(port, 'ground_location'):
@@ -776,9 +903,9 @@ class Simulation:
                             p_data['ground_edge'] = ((ground_edge.x1, ground_edge.y1, port_z),
                                                      (ground_edge.x2, ground_edge.y2, port_z))
                         except ValueError as e:
-                            self.__log.warning('Unable to create polygon for port {}, because either signal or ground '
-                                               'edge is not found.'.format(port.number))
-                            self.__log.debug(e)
+                            logging.warning('Unable to create polygon for port %s, because either signal or ground '
+                                                'edge is not found.', port.number)
+                            logging.debug(e)
                 else:
                     raise ValueError("Port {} has unsupported port class {}".format(port.number, type(port).__name__))
 
@@ -833,4 +960,8 @@ class Simulation:
             index_name = f'${i}' if i > 0 else ''
             cell_to_be_deleted = cell.layout().cell(f'{name}{index_name}')
             if cell_to_be_deleted is not None:
-                cell_to_be_deleted.delete()
+                # This has started causing errors on KLayout's side, protect with try-except
+                try:
+                    cell_to_be_deleted.delete()
+                except RuntimeError as e:
+                    logging.warning(f"Attempt to delete cell {name}{index_name} caused following error: {e}")

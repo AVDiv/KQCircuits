@@ -26,6 +26,7 @@ from kqcircuits.elements.smooth_capacitor import SmoothCapacitor
 from kqcircuits.elements.tsvs.tsv_standard import TsvStandard
 from kqcircuits.pya_resolver import pya
 from kqcircuits.simulations.export.ansys.ansys_export import export_ansys
+from kqcircuits.simulations.export.elmer.elmer_export import export_elmer
 from kqcircuits.simulations.export.simulation_export import export_simulation_oas
 
 from kqcircuits.simulations.simulation import Simulation
@@ -108,10 +109,9 @@ class TutorialSim(Simulation):
 
         # create through silicon via
         for faces in self.tsv_faces:
-            for face in faces:
-                cell = self.add_element(TsvStandard, face_ids=[face])
-                trans = pya.DTrans(0, False, self.box.center().x, element_y)
-                _, refp = self.insert_cell(cell, trans)
+            cell = self.add_element(TsvStandard, face_ids=faces)
+            trans = pya.DTrans(0, False, self.box.center().x, element_y)
+            _, refp = self.insert_cell(cell, trans)
             element_y += self.box.height() / (number_of_elements + 1)
 
 
@@ -165,8 +165,15 @@ simulations = [
               chip_distance=0.0, capacitor_faces=['1t1'], text_faces=['2t1']),
 ]
 
-# Export Ansys files
-export_ansys(simulations, **export_parameters)
+# Export Ansys (or Elmer) files
+export_tool = 'ansys'
+if export_tool == 'ansys':
+    export_ansys(simulations, **export_parameters)
+elif export_tool == 'elmer':
+    export_elmer(simulations, path=dir_path, workflow={'run_gmsh_gui': True}, mesh_size={
+        'global_max': 100,
+        **{f'{f}_gap': 10 for f in ['1b1', '1t1', '2b1', '2t1']}
+    })
 
 # Write and open oas file
 open_with_klayout_or_default_application(export_simulation_oas(simulations, dir_path))

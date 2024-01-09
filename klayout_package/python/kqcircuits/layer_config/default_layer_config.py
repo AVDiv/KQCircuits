@@ -228,6 +228,7 @@ default_path_length_layers = [
     "1b1_waveguide_path",
     "1t1_waveguide_path",
     "2b1_waveguide_path",
+    "2t1_waveguide_path",
     "waveguide_length"  # AirbridgeConnection uses this
 ]
 
@@ -239,12 +240,11 @@ default_mask_parameters = {
         "chips_map_offset": pya.DVector(-1200, 1200),
         "chip_size": 10000,
         "chip_box_offset": pya.DVector(0, 0),
-        "chip_trans": pya.DTrans(pya.DPoint(0, 0)) * pya.DTrans().M90,
+        "chip_trans": pya.DTrans(),
         "dice_width": 200,
         "text_margin": 100,
         "mask_text_scale": 1.0,
         "mask_marker_offset": 50000,
-        "mask_name_offset": pya.DPoint(0, -7200),
     },
     "1t1": {
         "wafer_rad": 76200,
@@ -256,31 +256,28 @@ default_mask_parameters = {
         "text_margin": 100,
         "mask_text_scale": 1.0,
         "mask_marker_offset": 50000,
-        "mask_name_offset": pya.DPoint(0, -7200),
     },
     "2b1": {
         "wafer_rad": 76200,
         "chips_map_offset": pya.DVector(-2700, 2700),
         "chip_size": 7000,
         "chip_box_offset": pya.DVector(1500, 1500),
-        "chip_trans": pya.DTrans(pya.DPoint(10000, 0)) * pya.DTrans().M90,
+        "chip_trans": pya.DTrans(pya.DVector(10000, 0)) * pya.DTrans().M90,
         "dice_width": 140,
         "text_margin": 100,
         "mask_text_scale": 0.7,
         "mask_marker_offset": 50000,
-        "mask_name_offset": pya.DPoint(0, -6500),
     },
     "2t1": {
         "wafer_rad": 76200,
         "chips_map_offset": pya.DVector(-2700, 2700),
         "chip_size": 7000,
         "chip_box_offset": pya.DVector(1500, 1500),
-        "chip_trans": pya.DTrans(),
+        "chip_trans": pya.DTrans(pya.DVector(10000, 0)) * pya.DTrans().M90,
         "dice_width": 140,
         "text_margin": 100,
         "mask_text_scale": 0.7,
         "mask_marker_offset": 50000,
-        "mask_name_offset": pya.DPoint(0, -6500),
     }
 }
 

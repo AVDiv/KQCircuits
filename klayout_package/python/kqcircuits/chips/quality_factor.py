@@ -20,7 +20,7 @@ from kqcircuits.pya_resolver import pya
 from kqcircuits.util.parameters import Param, pdt
 
 from kqcircuits.chips.chip import Chip
-from kqcircuits.defaults import default_airbridge_type
+from kqcircuits.defaults import default_airbridge_type, default_sampleholders
 from kqcircuits.elements.waveguide_coplanar import WaveguideCoplanar
 from kqcircuits.elements.waveguide_coplanar_splitter import WaveguideCoplanarSplitter, t_cross_parameters
 from kqcircuits.elements.airbridges.airbridge import Airbridge
@@ -51,13 +51,13 @@ class QualityFactor(Chip):
     tl_airbridges = Param(pdt.TypeBoolean, "Airbridges on transmission line", True)
     res_airbridge_types = Param(pdt.TypeList, "Airbridge type for each resonator",
                          default=[default_airbridge_type]*6)
-    launcher_top_dist = Param(pdt.TypeDouble, "Launcher distance from top", 2800, unit="μm")
-    launcher_indent = Param(pdt.TypeDouble, "Launcher indentation from edge", 800, unit="μm")
+    sample_holder_type = Param(pdt.TypeInt, "Sample holder type for the chip", "SMA8", choices=["SMA8", "ARD24"])
     marker_safety = Param(pdt.TypeDouble, "Distance between launcher and first curve", 1000, unit="μm")
     feedline_bend_distance = Param(pdt.TypeDouble, "Horizontal distance of feedline bend", 100, unit="μm")
     resonators_both_sides = Param(pdt.TypeBoolean, "Place resonators on both sides of feedline", False)
     max_res_len = Param(pdt.TypeDouble, "Maximal straight length of resonators", 1e30, unit="μm",
                         docstring="Resonators exceeding this length become meandering")
+    ground_grid_in_trace = Param(pdt.TypeList, "Include ground-grid in the trace", [0]*18)
     # override box to have hidden=False and allow GUI editing
     box = Param(pdt.TypeShape, "Border", pya.DBox(pya.DPoint(0, 0), pya.DPoint(10000, 10000)))
 
@@ -81,9 +81,17 @@ class QualityFactor(Chip):
         else:
             wg_top_y = (chip_side + max_res_len) / 2
 
-        # Non-standard Launchers mimicking SMA8 at 1cm chip size, but keeping fixed distance from top
-        launchers = self.produce_n_launchers(8, "RF", 300, 180, self.launcher_indent,
-                                             chip_side - 2 * self.launcher_top_dist, {8: "PL-1-IN", 3: "PL-1-OUT"})
+        # support resizable chip keeping pad distances from the top constant
+        if self.sample_holder_type == "ARD24":
+            launchers = self.produce_n_launchers(**{**default_sampleholders["ARD24"],
+                                                    "pad_pitch": (chip_side - 4000) / 5,
+                                                    "chip_box": self.box},
+                                                launcher_assignments={24: "PL-1-IN", 7: "PL-1-OUT"})
+        elif self.sample_holder_type == "SMA8":
+            launchers = self.produce_n_launchers(**{**default_sampleholders["SMA8"],
+                                                    "pad_pitch": chip_side - 2 * 2800,
+                                                    "chip_box": self.box},
+                                                 launcher_assignments={8: "PL-1-IN", 3: "PL-1-OUT"})
 
         # Define start and end of feedline
         points_fl = [launchers["PL-1-IN"][0]]
@@ -155,13 +163,17 @@ class QualityFactor(Chip):
                                 bridge_length=bridge_length, length_increment=length_increment)
             else:
                 node_end = Node(pos_res_end, n_bridges=n_ab[i],
-                                bridge_length=bridge_length, length_increment=length_increment)
+                                bridge_length=bridge_length,
+                                length_increment=length_increment)
 
             airbridge_type = default_airbridge_type
             if i < len(self.res_airbridge_types):
                 airbridge_type = self.res_airbridge_types[i]
-            wg = self.add_element(WaveguideComposite, nodes=[node_beg, node_end], a=res_a[i], b=res_b[i],
-                airbridge_type=airbridge_type)
+            wg = self.add_element(WaveguideComposite,
+                                  nodes=[node_beg, node_end],
+                                  a=res_a[i], b=res_b[i],
+                                  ground_grid_in_trace=int(self.ground_grid_in_trace[i]),
+                                  airbridge_type=airbridge_type)
             self.insert_cell(wg)
 
             # Feedline
@@ -169,7 +181,8 @@ class QualityFactor(Chip):
                 "path": pya.DPath(points_fl + [
                     cross_refpoints_abs["port_left"]
                 ], 1),
-                "term2": 0
+                "term2": 0,
+                "ground_grid_in_trace": False
             }})
             points_fl = [cross_refpoints_abs["port_right"]]
 
@@ -188,5 +201,6 @@ class QualityFactor(Chip):
 
         self.insert_cell(WaveguideCoplanar, **{**self.cell.pcell_parameters_by_name(), **{
             "path": pya.DPath(points_fl + points_fl_end, 1),
-            "term2": 0
+            "term2": 0,
+            "ground_grid_in_trace": False
         }})

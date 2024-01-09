@@ -1,0 +1,38 @@
+Bootstrap: docker
+From: centos:7.9.2009
+
+%help
+    This container can be used to run Elmer simulations for KQCircuits.
+
+    The main `runscript` corresponds to using the `kqc` command provided by KQCircuits. Alternatively, to get into a shell in the container use `singularity shell image`
+
+%labels
+    org.opencontainers.image.title "KQCircuits simulations image"
+    org.opencontainers.image.authors "IQM"
+    org.opencontainers.image.source "https://github.com/iqm-finland/KQCircuits"
+    org.opencontainers.image.documentation "https://iqm-finland.github.io/KQCircuits"
+    org.opencontainers.image.description "This container can be used to run Elmer simulations for KQCircuits"
+    org.opencontainers.image.licenses "GPL-3.0-only"
+
+%files
+    MUMPS_Makefile.inc /opt/Makefile.inc
+    install_software.sh /opt/install_software.sh
+
+%runscript
+    exec kqc "$@"
+
+%environment
+    export SLURM_MPI_TYPE=pmi2
+    export PMIX_MCA_gds=hash
+    source /opt/rh/devtoolset-11/enable
+    source /opt/rh/rh-git218/enable
+    export ELMER_HOME="/opt/elmer"
+    export PATH=$ELMER_HOME/bin:$PATH
+    export LD_LIBRARY_PATH=$ELMER_HOME/include:$ELMER_HOME/lib:/opt/elmer/share/elmersolver/lib:/opt/hypre/lib:/opt/scalapack/lib:/opt/mumps/lib:/opt/netcdf/lib64:/opt/mmg/lib64:/opt/parmmg/lib64:/opt/nn/lib:/opt/csa/lib:$LD_LIBRARY_PATH
+
+%post -c /bin/bash
+    #!/bin/bash
+    chmod u+x /opt/install_software.sh
+    /opt/install_software.sh
+
+

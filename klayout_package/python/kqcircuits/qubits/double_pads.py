@@ -21,13 +21,16 @@ import math
 from kqcircuits.elements.element import Element
 from kqcircuits.junctions.squid import Squid
 from kqcircuits.junctions.manhattan import Manhattan
+from kqcircuits.junctions.manhattan_single_junction import ManhattanSingleJunction
 from kqcircuits.util.parameters import Param, pdt, add_parameters_from
 from kqcircuits.qubits.qubit import Qubit
 from kqcircuits.pya_resolver import pya
+from kqcircuits.util.refpoints import WaveguideToSimPort, JunctionSimPort
 
 
 @add_parameters_from(Squid, junction_type="Manhattan")
 @add_parameters_from(Manhattan)
+@add_parameters_from(ManhattanSingleJunction)
 class DoublePads(Qubit):
     """A two-island qubit, consisting of two rounded rectangles shunted by a junction, with one capacitive coupler.
 
@@ -57,6 +60,7 @@ class DoublePads(Qubit):
                                          "Second qubit island tapering width on the junction side", 10, unit="µm")
 
     island_island_gap = Param(pdt.TypeDouble, "Island to island gap distance", 70, unit="µm")
+    with_squid = Param(pdt.TypeBoolean, "Boolean whether to include the squid", True)
 
     def build(self):
 
@@ -79,7 +83,9 @@ class DoublePads(Qubit):
         squid_height = temp_squid_ref["port_common"].distance(pya.DPoint(0, 0))
         # Now actually add SQUID
         squid_transf = pya.DCplxTrans(1, 0, False, pya.DVector(0, self.squid_offset - squid_height / 2))
-        self.produce_squid(squid_transf)
+
+        if self.with_squid:
+            self.produce_squid(squid_transf)
 
         taper_height = (self.island_island_gap - squid_height)/2
 
@@ -179,3 +185,7 @@ class DoublePads(Qubit):
             pya.DPoint(-self.island2_taper_width / 2, island2_top - taper_height),
         ]).to_itype(self.layout.dbu))
         return island2_region + island2_taper
+
+    @classmethod
+    def get_sim_ports(cls, simulation):
+        return [JunctionSimPort(), WaveguideToSimPort("port_cplr", side="top")]

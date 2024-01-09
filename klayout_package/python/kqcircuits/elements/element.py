@@ -19,14 +19,12 @@
 import json
 from inspect import isclass
 
-from autologging import logged
-
 from kqcircuits.defaults import default_layers, default_faces, default_parameter_values
 from kqcircuits.pya_resolver import pya, is_standalone_session
 from kqcircuits.util.geometry_helper import get_cell_path_length
 from kqcircuits.util.library_helper import load_libraries, to_library_name, to_module_name, element_by_class_name
 from kqcircuits.util.parameters import Param, pdt
-from kqcircuits.util.refpoints import Refpoints
+from kqcircuits.util.refpoints import Refpoints, WaveguideToSimPort
 
 
 def get_refpoints(layer, cell, cell_transf=pya.DTrans(), rec_levels=None):
@@ -94,7 +92,6 @@ def insert_cell_into(target_cell, cell, trans=None, inst_name=None, label_trans=
             cell_inst.set_property("label_trans", label_trans_str)
     return cell_inst, refpoints_abs
 
-@logged
 class Element(pya.PCellDeclarationHelper):
     """Element PCell declaration.
 
@@ -114,6 +111,8 @@ class Element(pya.PCellDeclarationHelper):
     face_ids = Param(pdt.TypeList, "Chip face IDs list", ["1t1", "2b1", "1b1", "2t1"])
     display_name = Param(pdt.TypeString, "Name displayed in GUI (empty for default)", "")
     protect_opposite_face = Param(pdt.TypeBoolean, "Add opposite face protection too", False)
+    opposing_face_id_groups = Param(pdt.TypeList, "Opposing face ID groups (list of lists)", [["1t1", "2b1"]],
+                                    hidden=True)
 
     def __init__(self):
         ""
@@ -283,16 +282,21 @@ class Element(pya.PCellDeclarationHelper):
                 self.refpoints[new_name] = pos
         return cell_inst, refpoints_abs
 
-    def face(self, face_index=0):
-        """Returns the face dictionary corresponding to self.face_ids[face_index].
+    def _resolve_face(self, face_id):
+        """Returns face_id if the parameter is given as string or self.face_ids[face_id] otherwise.
+        The face_id as a string must be a key in default_faces but does not necessarily need to be in self.face_ids.
+        """
+        return face_id if isinstance(face_id, str) else self.face_ids[face_id]
+
+    def face(self, face_id=0):
+        """Returns the face dictionary corresponding to face_id.
 
         The face dictionary contains key "id" for the face ID and keys for all the available layers in that face.
 
         Args:
-            face_index: index of the face_id in self.face_ids, default=0
-
+            face_id: name or index of the face, default=0
         """
-        return default_faces[self.face_ids[face_index]]
+        return default_faces[self._resolve_face(face_id)]
 
     def pcell_params_by_name(self, cls=None, **parameters):
         """Give PCell parameters as a dictionary.
@@ -330,7 +334,7 @@ class Element(pya.PCellDeclarationHelper):
             direction: direction of the signal going _to_ the port to determine the location of the "corner" reference
                 point which is used for waveguide direction. If evaluates to False as is the default, no corner point is
                 added.
-            face_id: index of the face id, default=0
+            face_id: name or index of the face, default=0
         """
         text = pya.DText(name, pos.x, pos.y)
         self.cell.shapes(self.get_layer("ports", face_id)).insert(text)
@@ -425,12 +429,9 @@ class Element(pya.PCellDeclarationHelper):
             layer_name: layer name text
             face_id: Name or index of the face to use, default=0
         """
-        if isinstance(face_id, str):
-            return self.layout.layer(self.face(self.face_ids.index(face_id))[layer_name])
-        elif (face_id == 0) and (layer_name not in self.face(0)):
+        if (face_id == 0) and (layer_name not in self.face(0)):
             return self.layout.layer(default_layers[layer_name])
-        else:
-            return self.layout.layer(self.face(face_id)[layer_name])
+        return self.layout.layer(self.face(face_id)[layer_name])
 
     @staticmethod
     def _create_cell(elem_cls, layout, library=None, **parameters) -> pya.Cell:
@@ -518,18 +519,22 @@ class Element(pya.PCellDeclarationHelper):
         self.insert_cell(error_text_cell, pya.DTrans(position - text_center))
         raise ValueError(error_msg)
 
-    def add_protection(self, shape, face_id=0, opposite_face_id=1):
+    def add_protection(self, shape, face_id=0):
         """Add ground grid protection shape
 
         Args:
              shape: The shape (Region, DPolygon, etc.) to add to ground_grid_avoidance layer
-             face_id: primary face index of ground_grid_avoidance layer, default=0
-             opposite_face_id: opposite face index, will be used if protect_opposite_face is True, default=1
+             face_id: Name or index of the primary face of ground_grid_avoidance layer, default=0
         """
-
-        self.cell.shapes(self.get_layer("ground_grid_avoidance", face_id)).insert(shape)
-        if self.protect_opposite_face and len(self.face_ids) > opposite_face_id:
-            self.cell.shapes(self.get_layer("ground_grid_avoidance", opposite_face_id)).insert(shape)
+        face = self._resolve_face(face_id)
+        self.cell.shapes(self.get_layer("ground_grid_avoidance", face)).insert(shape)
+        if self.protect_opposite_face:
+            for group in self.opposing_face_id_groups:
+                if face in group:
+                    for other_face in group:
+                        if other_face != face:
+                            self.cell.shapes(self.get_layer("ground_grid_avoidance", other_face)).insert(shape)
+                    break
 
     def sync_parameters(self, abc):
         """Syncronise the calling class' parameters with a JSON representation.
@@ -587,3 +592,52 @@ class Element(pya.PCellDeclarationHelper):
                 if hasattr(self, k):
                     setattr(self, k, v)
         setattr(self, f"_{pname}", json_str)
+
+    @classmethod
+    def get_sim_ports(cls, simulation): # pylint: disable=unused-argument
+        """List of RefpointToSimPort objects defining which refpoints
+        should be turned to simulation ports for the given element class
+
+        Returns empty list if not implemented for Element subclass.
+        When implementing this method, the best practice is for this method
+        to have no "side effects", that is all code contained within this method
+        should only serve to derive the list of RefpointToSimPort objects and nothing
+        else: no change in element's geometry or parameter values.
+
+        Args:
+            cls: Element class, this is a class method
+            simulation: Simulation object where a cell of this element class is placed.
+                Use this argument if you need to decide certain arguments
+                for RefpointToSimPort objects based on simulation's parameters
+
+        Returns:
+            List of RefpointToSimPort objects, empty list by default
+        """
+        return []
+
+    @staticmethod
+    def left_and_right_waveguides(simulation):
+        """A common implementation of get_sim_ports that adds left and right waveguides
+        to port_a and port_b respectively. The a and b values of right waveguide
+        can be adjusted separately.
+        """
+        a2 = simulation.a if simulation.a2 < 0 else simulation.a2
+        b2 = simulation.b if simulation.b2 < 0 else simulation.b2
+        return [WaveguideToSimPort("port_a", side='left', a=simulation.a, b=simulation.b),
+                WaveguideToSimPort("port_b", side='right', a=a2, b=b2)]
+
+    @staticmethod
+    def face_changer_waveguides(simulation):
+        """A common implementation of get_sim_ports that adds waveguides on both sides of a face-changing element.
+        The port names are '{face_ids[0]}_port' and '{face_ids[1]}_port'.
+        The first port points to left and the second port orientation is determined by output_rotation parameter.
+        The a and b values of the second waveguide are adjusted by a2 and b2 parameters.
+        """
+        def diff_to_rotation(x):
+            return abs(x - (simulation.output_rotation % 360))
+        side = {0: 'left', 90: 'bottom', 180: 'right', 270: 'top', 360: 'left'}\
+            .get(min([0, 90, 180, 270, 360], key=diff_to_rotation))
+        a2 = simulation.a if simulation.a2 < 0 else simulation.a2
+        b2 = simulation.b if simulation.b2 < 0 else simulation.b2
+        return [WaveguideToSimPort(f"{simulation.face_ids[0]}_port", side="left"),
+                WaveguideToSimPort(f"{simulation.face_ids[1]}_port", side=side, face=1, a=a2, b=b2)]

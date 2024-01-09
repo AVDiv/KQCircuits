@@ -17,6 +17,7 @@
 
 
 # This is a Python 2.7 script that should be run in Ansys Electronic Desktop in order to import and run the simulation
+from math import cos, pi
 import time
 import os
 import sys
@@ -25,8 +26,8 @@ import ScriptEnv
 
 # TODO: Figure out how to set the python path for the Ansys internal IronPython
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'util'))
-from geometry import create_box, create_rectangle, create_polygon, thicken_sheet, set_material, add_layer, delete, \
-    move_vertically, subtract, unite, objects_from_sheet_edges, add_material  # pylint: disable=wrong-import-position
+from geometry import create_box, create_rectangle, create_polygon, thicken_sheet, set_material, add_layer, subtract, \
+    move_vertically, delete, objects_from_sheet_edges, add_material, set_color  # pylint: disable=wrong-import-position
 
 # Set up environment
 ScriptEnv.Initialize("Ansoft.ElectronicsDesktop")
@@ -49,7 +50,7 @@ box = data['box']
 
 ansys_project_template = data.get('ansys_project_template', '')
 vertical_over_etching = data.get('vertical_over_etching', 0)
-gap_max_element_length = data.get('gap_max_element_length', None)
+mesh_size = data.get('mesh_size', dict())
 
 # Create project
 oDesktop.RestoreWindow()
@@ -73,6 +74,13 @@ oOutputVariable = oDesign.GetModule("OutputVariable")
 oSolutions = oDesign.GetModule("Solutions")
 oReportSetup = oDesign.GetModule("ReportSetup")
 
+# Define colors
+def color_by_material(material):
+    if material == 'pec':
+        return 240, 120, 240, 0.5
+    n = 0.3 * (material_dict.get(material, dict()).get('permittivity', 1.0) - 1.0)
+    return tuple(int(100 + 80 * c) for c in [cos(n-pi/3), cos(n+pi), cos(n+pi/3)]) + (0.93 ** n,)
+
 # Set units
 oEditor.SetModelUnits(['NAME:Units Parameter', 'Units:=', units, 'Rescale:=', False])
 
@@ -82,8 +90,8 @@ for name, params in material_dict.items():
 
 # Import GDSII geometry
 layers = data.get('layers', dict())
-if gap_max_element_length is None:
-    layers = {n: d for n, d in layers.items() if '_gap' not in n}  # ignore gap objects if they are not used
+# ignore gap objects if they are not used
+layers = {n: d for n, d in layers.items() if '_gap' not in n or n in mesh_size}
 
 order_map = []
 layer_map = ["NAME:LayerMap"]
@@ -145,12 +153,16 @@ for lname, ldata in layers.items():
         # Solve Inside doesn't exist in 'q3d', so we use None to ignore the parameter.
         solve_inside = material != 'pec' if ansys_tool in ['hfss', 'eigenmode'] else None
         set_material(oEditor, objects[lname], material, solve_inside)
+        set_color(oEditor, objects[lname], *color_by_material(material))
     elif material == 'pec':
         pec_sheets += objects[lname]
-
+    elif lname not in mesh_size:
+        set_material(oEditor, objects[lname], None, None)  # set sheet as non-model
 
 # Assign perfect electric conductor to metal sheets
 if pec_sheets:
+    pec_color = color_by_material('pec')
+    set_color(oEditor, pec_sheets, pec_color[0], pec_color[1], pec_color[2], pec_color[3]**2)
     if ansys_tool in {'hfss', 'eigenmode'}:
         oBoundarySetup.AssignPerfectE(
             ["NAME:PerfE1",
@@ -187,8 +199,8 @@ if ansys_tool in {'hfss', 'eigenmode'}:
             polyname = 'Port%d' % port['number']
 
             # Create polygon spanning the two edges
-            create_polygon(oEditor, polyname,
-                           [list(p) for p in port['polygon']], units)
+            create_polygon(oEditor, polyname, [list(p) for p in port['polygon']], units)
+            set_color(oEditor, [polyname], 240, 180, 180, 0.8)
 
             oBoundarySetup.AutoIdentifyPorts(
                 ["NAME:Faces", int(oEditor.GetFaceIDs(polyname)[0])],
@@ -197,14 +209,20 @@ if ansys_tool in {'hfss', 'eigenmode'}:
                 str(port['number']),
                 False)
 
-            if ("deembed_len" in port) and (port["deembed_len"] is not None):
-                oBoundarySetup.EditWavePort(
-                    str(port['number']),
-                    ["Name:%d" % port['number'],
-                     "DoDeembed:=", True,
-                     "DeembedDist:=", "%f%s" % (port["deembed_len"], units)
-                     ]
-                )
+            if ansys_tool == 'hfss':
+                renorm = port.get("renormalization", None)
+                oBoundarySetup.SetTerminalReferenceImpedances("" if renorm is None else "{}ohm".format(renorm),
+                                                              str(port['number']), renorm is not None)
+
+                deembed_len = port.get("deembed_len", None)
+                if deembed_len is not None:
+                    oBoundarySetup.EditWavePort(
+                        str(port['number']),
+                        ["Name:%d" % port['number'],
+                         "DoDeembed:=", True,
+                         "DeembedDist:=", "%f%s" % (deembed_len, units)
+                         ]
+                    )
 
             # Turn junctions to lumped RLC
             if port['junction'] and ansys_tool == 'eigenmode':
@@ -353,40 +371,120 @@ elif ansys_tool == 'q3d':
     oBoundarySetup.AutoIdentifyNets()  # Combine Nets by conductor connections. Order: GroundNet, SignalNet, FloatingNet
 
 
-# Unite sheets modelling participation surfaces
-for layer in ['layerMA', 'layerMS', 'layerSA']:
-    layer_objects = [o for n, v in objects.items() if '_' + layer in n for o in v]
-    if layer_objects:
-        unite(oEditor, layer_objects, False)
-        oEditor.ChangeProperty(
-            ["NAME:AllTabs",
-             ["NAME:Geometry3DAttributeTab",
-              ["NAME:PropServers", layer_objects[0]],
-              ["NAME:ChangedProps",
-               ["NAME:Model", "Value:=", False],  # non-modelled sheet
-               ["NAME:Color", "R:=", 197, "G:=", 197, "B:=", 197],  # grey
-               ["NAME:Name", "Value:=", layer]
-               ]
-              ]
-             ])
+# Add field calculations
+if data.get('integrate_energies', False) and ansys_tool in {'hfss', 'eigenmode'}:
+    # Create term for squared E field and call it 'Esq'
+    oModule = oDesign.GetModule("FieldsReporter")
+    oModule.EnterQty("E")
+    oModule.CalcOp("CmplxMag")
+    oModule.CalcOp("Mag")
+    oModule.EnterScalar(2)
+    oModule.CalcOp("Pow")
+    oModule.AddNamedExpression("Esq", "Fields")
 
+    oModule.EnterQty("E")
+    oModule.CalcOp("ScalarZ")
+    oModule.CalcOp("VecZ")
+    oModule.AddNamedExpression("Ez", "Fields")
 
-# Manual mesh refinement on gap objects
-if gap_max_element_length is not None:
-    gap_objects = [o for n, v in objects.items() if '_gap' in n for o in v]
-    if gap_objects:
+    # Create energy integral terms for each object
+    total_solids = []
+    mer_total = []
+    epsilon_0 = 8.8541878128e-12
+    for lname, ldata in layers.items():
+        material = ldata.get('material', None)
+        if material is None:
+            material = ldata.get('sheet material', None)
+
+        if material == 'pec':
+            continue
+
+        permittivity = material_dict.get(material, {}).get('permittivity', 1.0)
+        epsilon = epsilon_0 * permittivity
+        sheet_thickness = ldata.get('sheet thickness', None)
+
+        # in case of non model sheets, we have to calculate the perpendicular field assuming
+        # d_sheet=epsilon_0 * epsilon_sheet * e_vac
+        # thus,
+        # energy = 0.5 * epsilon_0/epsilon_sheet e**2. * sheet_thickness
+        # and we can have an additional scalar
+        # sheet_thickness/epsilon_sheet
+        if sheet_thickness is not None:
+            sheet_thickness *= 1e-6 # thickness in um
+            parent_material_permittivity = 1  # assume that parent material is vacuum, which is incorrect for ms layer
+            ecorr = parent_material_permittivity / permittivity
+
+            oModule.EnterScalar(ecorr-1)
+            oModule.CopyNamedExprToStack("Ez")
+            oModule.CalcOp("*")
+            oModule.EnterQty("E")
+            oModule.CalcOp("+")
+            oModule.AddNamedExpression("Ecorr_"+lname, "Fields")
+
+            oModule.CopyNamedExprToStack("Ecorr_"+lname)
+            oModule.CalcOp("CmplxMag")
+            oModule.CalcOp("Mag")
+            oModule.EnterScalar(2)
+            oModule.CalcOp("Pow")
+            oModule.AddNamedExpression("Esqcorr_"+lname, "Fields")
+
+        thickness = ldata.get('thickness', 0.0)
+        for n, oname in enumerate(objects[lname]):
+            if thickness == 0.0:
+                if sheet_thickness is not None:
+                    oModule.CopyNamedExprToStack("Esqcorr_"+lname)
+                else:
+                    oModule.CopyNamedExprToStack("Esq")
+                oModule.EnterSurf(oname)
+            else:
+                oModule.CopyNamedExprToStack("Esq")
+                sheet_thickness = 1
+                oModule.EnterVol(oname)
+            oModule.CalcOp("Integrate")
+            if n > 0:
+                oModule.CalcOp("+")
+
+        if objects[lname]:
+            oModule.EnterScalar(epsilon / 2 * sheet_thickness)
+            oModule.CalcOp("*")
+        else:
+            oModule.EnterScalar(0.0)
+        oModule.AddNamedExpression("E_{}".format(lname), "Fields")
+
+        if thickness != 0.0 and material is not None:
+            total_solids.append("E_{}".format(lname))
+            if 'mer' in lname:
+                mer_total.append("E_{}".format(lname))
+
+    # Create term for total energy
+    for n, tname in enumerate(total_solids):
+        oModule.CopyNamedExprToStack(tname)
+        if n > 0:
+            oModule.CalcOp("+")
+    oModule.AddNamedExpression("total_energy", "Fields")
+
+    # Create term for mer total energy
+    for n, tname in enumerate(mer_total):
+        oModule.CopyNamedExprToStack(tname)
+        if n > 0:
+            oModule.CalcOp("+")
+    oModule.AddNamedExpression("total_mer_energy", "Fields")
+
+# Manual mesh refinement
+for mesh_layer, mesh_length in mesh_size.items():
+    mesh_objects = objects.get(mesh_layer, list())
+    if mesh_objects:
         oMeshSetup = oDesign.GetModule("MeshSetup")
         oMeshSetup.AssignLengthOp(
             [
-                "NAME:GapLength",
-                "RefineInside:=", False,
+                "NAME:mesh_size_{}".format(mesh_layer),
+                "RefineInside:=", layers.get(mesh_layer, dict()).get('thickness', 0.0) != 0.0,
                 "Enabled:=", True,
-                "Objects:=", gap_objects,
+                "Objects:=", mesh_objects,
                 "RestrictElem:=", False,
                 "RestrictLength:=", True,
-                "MaxLength:=", str(gap_max_element_length) + units
+                "MaxLength:=", str(mesh_length) + units
             ])
-
 
 if not ansys_project_template:
     # Insert analysis setup

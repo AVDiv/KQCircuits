@@ -39,7 +39,7 @@ ROOT_PATH = Path(os.getenv('KQC_ROOT_PATH', os.getcwd()))  # "current dir" or se
 if _kqcircuits_path.parts[-3] == "klayout_package":  # developer setup
     ROOT_PATH = _kqcircuits_path.parents[2]
 
-TMP_PATH = Path(os.getenv('KQC_TMP_PATH', ROOT_PATH.joinpath("tmp")))  # specify alternative tmp directory
+TMP_PATH = Path(os.getenv('KQC_TMP_PATH', str(ROOT_PATH.joinpath("tmp"))))  # specify alternative tmp directory
 _py_path = ROOT_PATH.joinpath("klayout_package/python")
 
 if _kqcircuits_path.parts[-4] == "salt":  # KQC Salt package
@@ -52,6 +52,8 @@ DRC_PATH = _py_path.joinpath("drc")
 
 TMP_PATH.mkdir(parents=True, exist_ok=True)  # TODO move elsewhere?
 
+ANSYS_EXECUTABLE = r"%PROGRAMFILES%\AnsysEM\v232\Win64\ansysedt.exe"  # default Ansys executable location in Windows
+# ANSYS_EXECUTABLE = "/opt/AnsysEM/v232/Linux64/ansysedt"  # default Ansys executable location in Linux
 ANSYS_SCRIPT_PATHS = [SCRIPTS_PATH.joinpath("simulations").joinpath("ansys")]
 ELMER_SCRIPT_PATHS = [SCRIPTS_PATH.joinpath("simulations").joinpath("elmer")]
 XSECTION_PROCESS_PATH = ROOT_PATH.joinpath("xsection/kqc_process.xs")
@@ -59,6 +61,11 @@ XSECTION_PROCESS_PATH = ROOT_PATH.joinpath("xsection/kqc_process.xs")
 VERSION_PATHS = {}
 VERSION_PATHS['KQC'] = ROOT_PATH
 SIM_SCRIPT_PATH = ROOT_PATH / 'klayout_package' / 'python' / 'scripts' / 'simulations'
+
+# Default path on remote
+KQC_REMOTE_TMP_PATH = os.getenv('KQC_REMOTE_TMP_PATH', '~/KQCircuits/tmp')
+# Remote account for slurm
+KQC_REMOTE_ACCOUNT = os.getenv('KQC_REMOTE_ACCOUNT')
 
 # Given to subprocess.Popen calls, hides terminals on Windows
 STARTUPINFO = None
@@ -182,6 +189,8 @@ node_editor_valid_elements = [
 
 node_editor_layer_changing_elements = ['FlipChipConnectorRf']
 
+# List of modules to be excluded from documentation generation. Plain module file names without '.py'.
+excluded_module_names = ()
 
 # Path to the layer configuration file, which defines layer/face related defaults.
 # The path can be either absolute or relative.

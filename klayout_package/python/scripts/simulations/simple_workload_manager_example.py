@@ -47,9 +47,8 @@ export_parameters = {
 # Gmsh meshing parameters
 mesh_size = {
     'global_max': 400.,
-    'gap': 16.,
-    'port': 8.,
-    'signal&gap': 8,
+    '1t1_gap': 16.,
+    '1t1_signal&1t1_gap': 8,
 }
 
 # Here we select to use up to 4*2=8 cores with two levels of parallelisation
@@ -63,6 +62,7 @@ workflow = {
     'n_workers': 4,  # workers for first-level parallelisation, using Slurm would override this
     'gmsh_n_threads': 2,
     'elmer_n_processes': 2,  # processes for second-level parallelisation
+    'elmer_n_threads': 1,  # number of omp threads per process
     'python_executable': 'python' # use 'kqclib' when using singularity image (you can also put a full path)
 }
 

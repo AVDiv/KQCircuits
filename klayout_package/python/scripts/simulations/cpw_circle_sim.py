@@ -83,8 +83,8 @@ if use_elmer:
     }
     mesh_size = {
         'global_max': 200.,
-        'gap&signal': 2.,
-        'gap&ground': 2.,
+        '1t1_gap&1t1_signal': 2.,
+        '1t1_gap&1t1_ground': 2.,
     }
     workflow = {
         'run_gmsh_gui': True,  # For GMSH: if true, the mesh is shown after it is done
@@ -93,8 +93,14 @@ if use_elmer:
         'run_paraview': True,  # this is visual view of the results which can be removed to speed up the process
         'gmsh_n_threads': -1,  # -1 means all the physical cores
         'elmer_n_processes': -1,  # -1 means all the physical cores
+        'elmer_n_threads': 1,  # number of omp threads per process
     }
-    export_elmer(simulations, **export_parameters, mesh_size=mesh_size, workflow=workflow)
+    export_elmer(
+        simulations,
+        **export_parameters,
+        mesh_size=mesh_size,
+        workflow=workflow,
+    )
 else:
     export_parameters = {
         'path': dir_path,

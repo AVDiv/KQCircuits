@@ -48,7 +48,7 @@ def arc(r, start, stop, n):
     return pts
 
 
-@add_parameters_from(WaveguideCoplanarStraight, "add_metal")
+@add_parameters_from(WaveguideCoplanarStraight, "add_metal", "ground_grid_in_trace")
 class WaveguideCoplanarCurved(Element):
     """The PCell declaration of a curved segment of a coplanar waveguide.
 
@@ -69,21 +69,27 @@ class WaveguideCoplanarCurved(Element):
 
         # Left gap
         pts = left_inner_arc + left_outer_arc
-        shape = pya.DPolygon(pts)
-        self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape)
+        shape_1 = pya.DPolygon(pts)
+        self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape_1)
         # Right gap
         pts = right_inner_arc + right_outer_arc
-        shape = pya.DPolygon(pts)
-        self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape)
-        # Protection layer
-        pts = left_protection_arc + right_protection_arc
-        self.add_protection(pya.DPolygon(pts))
-        # Waveguide lenght
+        shape_2 = pya.DPolygon(pts)
+        self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape_2)
+
         pts = annotation_arc
         shape = pya.DPath(pts, self.a)
         self.cell.shapes(self.get_layer("waveguide_path")).insert(shape)
         if self.add_metal:
             self.cell.shapes(self.get_layer("base_metal_addition")).insert(shape)
+
+        # Protection layer
+        if self.ground_grid_in_trace:
+            self.add_protection(shape_1.sized(1))
+            self.add_protection(shape_2.sized(1))
+        else:
+            # Protection layer
+            pts = left_protection_arc + right_protection_arc
+            self.add_protection(pya.DPolygon(pts))
 
     @staticmethod
     def create_curve_arcs(elem, angle):
@@ -110,7 +116,7 @@ class WaveguideCoplanarCurved(Element):
             annotation
 
     @staticmethod
-    def produce_curve_termination(elem, angle, term_len, trans, face_index=0, opp_face_index=1):
+    def produce_curve_termination(elem, angle, term_len, trans, face_index=0):
         """Produces termination for a curved waveguide.
 
         The termination consists of a rectangular polygon in the metal gap layer, and grid avoidance around it.
@@ -122,7 +128,6 @@ class WaveguideCoplanarCurved(Element):
             term_len (double): termination length, assumed positive
             trans (DTrans): transformation applied to the termination
             face_index (int): face index of the face in elem where the termination is created
-            opp_face_index (int): face index of the opposite face
         """
         left_inner_arc, left_outer_arc, right_inner_arc, right_outer_arc, left_protection_arc, right_protection_arc,\
             _ = WaveguideCoplanarCurved.create_curve_arcs(elem, angle)
@@ -150,4 +155,4 @@ class WaveguideCoplanarCurved(Element):
             right_protection_arc[0] + (term_len + elem.margin)*term_dir,
             right_protection_arc[0],
         ]
-        elem.add_protection(trans * pya.DPolygon(protection_pts), face_index, opp_face_index)
+        elem.add_protection(trans * pya.DPolygon(protection_pts), face_index)

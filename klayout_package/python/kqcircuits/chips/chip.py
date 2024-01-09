@@ -1,4 +1,4 @@
-# This code is part of KQCircuits
+﻿# This code is part of KQCircuits
 # Copyright (C) 2021 IQM Finland Oy
 #
 # This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
@@ -17,8 +17,8 @@
 # pylint: disable=R0904
 # TODO: Consider refactoring to reduce number of public methods
 
+import logging
 import numpy
-from autologging import logged
 
 from kqcircuits.defaults import default_layers, default_junction_type, default_sampleholders, default_mask_parameters, \
     default_bump_parameters, default_marker_type
@@ -37,11 +37,10 @@ from kqcircuits.elements.flip_chip_connectors.flip_chip_connector_dc import Flip
 from kqcircuits.elements.flip_chip_connectors.flip_chip_connector_rf import FlipChipConnectorRf
 
 
-@logged
 @add_parameters_from(Tsv, "tsv_type")
 @add_parameters_from(FlipChipConnectorRf, "connector_type")
 @add_parameter(ChipFrame, "box", hidden=True)
-@add_parameters_from(ChipFrame, "name_mask", "name_chip", "name_copy", "name_brand",
+@add_parameters_from(ChipFrame, "name_mask", "name_chip", "name_copy", "name_brand", "chip_dicing_in_base_metal",
                      "dice_grid_margin", marker_types=[default_marker_type] * 8)
 class Chip(Element):
     """Base PCell declaration for chips.
@@ -245,7 +244,7 @@ class Chip(Element):
     def produce_structures(self):
         """Produces chip frame and possibly other structures before the ground grid.
 
-        This method is called in build(). Override this method to produce a different set of chip frames.
+        This method is called in post_build(). Override this method to produce a different set of chip frames.
         """
 
         for i, face in enumerate(self.frames_enabled):
@@ -274,9 +273,6 @@ class Chip(Element):
         if self.with_face1_gnd_tsvs:
             tsv_box = self.get_box(1).enlarged(pya.DVector(-self.edge_from_tsv, -self.edge_from_tsv))
             self._produce_ground_tsvs(face_id=[3, 1], tsv_box=tsv_box)
-
-        if self.with_gnd_bumps:
-            self._produce_ground_bumps()
 
     def get_box(self, face=0):
         """
@@ -307,7 +303,7 @@ class Chip(Element):
         The bumps avoid ground grid avoidance on both faces, and keep a minimum distance to any existing (manually
         placed) bumps.
         """
-        self.__log.info('Starting ground bump generation')
+        logging.info('Starting ground bump generation')
         bump = self.add_element(FlipChipConnectorDc)
 
         bump_box = self.get_box(1).enlarged(pya.DVector(-self.edge_from_bump, -self.edge_from_bump))
@@ -348,11 +344,13 @@ class Chip(Element):
         for location in bump_locations:
             self.insert_cell(bump, pya.DTrans(location))
 
-        self.__log.info(f'Found {existing_bump_count} existing bumps and inserted {len(bump_locations)} ground bumps, '
+        logging.info(f'Found {existing_bump_count} existing bumps and inserted {len(bump_locations)} ground bumps, '
                         + f'totalling {existing_bump_count + len(bump_locations)} bumps.')
 
     def post_build(self):
         self.produce_structures()
+        if self.with_gnd_bumps:
+            self._produce_ground_bumps()
         if self.with_grid:
             self.produce_ground_grid()
         if self.merge_base_metal_gap:
@@ -381,7 +379,7 @@ class Chip(Element):
                     label_trans = label_trans * rel_label_trans
                 self.insert_cell(cell, label_trans)
 
-    def produce_launchers(self, sampleholder_type, launcher_assignments=None, enabled=None):
+    def produce_launchers(self, sampleholder_type, launcher_assignments=None, enabled=None, face_id=0):
         """Produces launchers for typical sample holders and sets chip size (``self.box``) accordingly.
 
         This is a wrapper around ``produce_n_launchers()`` to generate typical launcher configurations.
@@ -390,6 +388,7 @@ class Chip(Element):
             sampleholder_type: name of the sample holder type
             launcher_assignments: dictionary of (port_id: name) that assigns a name to some of the launchers
             enabled: list of enabled launchers, empty means all
+            face_id: index of face_ids in which to insert the launchers
 
         Returns:
             launchers as a dictionary :code:`{name: (point, heading, distance from chip edge)}`
@@ -402,11 +401,12 @@ class Chip(Element):
 
         if sampleholder_type in default_sampleholders:
             return self.produce_n_launchers(**default_sampleholders[sampleholder_type],
-                                            launcher_assignments=launcher_assignments, enabled=enabled)
+                                            launcher_assignments=launcher_assignments, enabled=enabled, face_id=face_id)
         return {}
 
     def produce_n_launchers(self, n, launcher_type, launcher_width, launcher_gap, launcher_indent, pad_pitch,
-                            launcher_assignments=None, launcher_frame_gap=None, enabled=None, chip_box=None):
+                            launcher_assignments=None, port_id_remap=None, launcher_frame_gap=None, enabled=None,
+                            chip_box=None, face_id=0):
         """Produces n launchers at default locations and optionally changes the chip size.
 
         Launcher pads are equally distributed around the chip. This may be overridden by specifying
@@ -424,8 +424,16 @@ class Chip(Element):
             pad_pitch: distance between pad centers
             launcher_frame_gap: gap of the launcher pad at the frame
             launcher_assignments: dictionary of (port_id: name) that assigns a name to some of the launchers
+            port_id_remap: by default, left-most top edge launcher has port_id set to 1 and port_ids
+                increment for other launchers in clockwise order.
+                port_id_remap is a dictionary [1..n] -> [1..n] such that for port_id_remap[x] = y,
+                x is the port_id of the launcher in default order and y is the port_id of that launcher
+                in your desired order.
+                For example, to flip the launcher order by chip's y-axis, set port_id_remap to
+                ``{i+1: ((n - i + n/4-1) % n) + 1 for i in range(n)}``
             enabled: optional list of enabled launchers
             chip_box: optionally changes the chip size (``self.box``)
+            face_id: index of face_ids in which to insert the launchers
 
         Returns:
             launchers as a dictionary :code:`{name: (point, heading, distance from chip edge)}`
@@ -438,11 +446,11 @@ class Chip(Element):
             self.box = chip_box
 
         if launcher_type == "DC":
-            launcher_cell = self.add_element(LauncherDC, width=launcher_width)
+            launcher_cell = self.add_element(LauncherDC, width=launcher_width, face_ids=[self.face_ids[face_id]])
         else:
             launcher_cell = self.add_element(Launcher, s=launcher_width, l=launcher_width,
                                              a_launcher=launcher_width, b_launcher=launcher_gap,
-                                             launcher_frame_gap=launcher_frame_gap)
+                                             launcher_frame_gap=launcher_frame_gap, face_ids=[self.face_ids[face_id]])
 
         pads_per_side = n
         if not isinstance(n, tuple):
@@ -458,19 +466,24 @@ class Chip(Element):
         _h = self.box.p2.y - self.box.p1.y
         sides = [_w, _h, _w, _h]
 
-        return self._insert_launchers(dirs, enabled, launcher_assignments, launcher_cell, launcher_indent,
-                                      launcher_width, pad_pitch, pads_per_side, sides, trans)
+        return self._insert_launchers(dirs, enabled, launcher_assignments, port_id_remap, launcher_cell,
+                                      launcher_indent, launcher_width, pad_pitch, pads_per_side, sides, trans,
+                                      face_id=face_id)
 
-    def _insert_launchers(self, dirs, enabled, launcher_assignments, launcher_cell, launcher_indent, launcher_width,
-                          pad_pitch, pads_per_side, sides, trans):
-
+    def _insert_launchers(self, dirs, enabled, launcher_assignments, port_id_remap, launcher_cell, launcher_indent,
+                          launcher_width, pad_pitch, pads_per_side, sides, trans, face_id):
         """Inserts launcher cell at predefined parameters and returns launcher cells
 
         """
-        port_id, launchers = 0, {}
+        launcher_order_idx, launchers = 0, {}
         for np, dr, tr, si in zip(pads_per_side, dirs, trans, sides):
             for i in range(np):
-                port_id += 1
+                launcher_order_idx += 1
+                if port_id_remap:
+                    port_id = port_id_remap.get(launcher_order_idx, launcher_order_idx)
+                else:
+                    port_id = launcher_order_idx
+
                 if launcher_assignments:
                     if port_id not in launcher_assignments:
                         continue
@@ -488,7 +501,7 @@ class Chip(Element):
                 transf = pya.DCplxTrans(1, dr, False, loc)
                 launcher_inst, launcher_refpoints = self.insert_cell(launcher_cell, transf, name)
                 launcher_inst.set_property("port_id", port_id)
-                self.add_port(name, launcher_refpoints["port"])
+                self.add_port(name, launcher_refpoints["port"], face_id=face_id)
         return launchers
 
     def make_grid_locations(self, box, delta_x=100, delta_y=100):  # pylint: disable=no-self-use
@@ -524,13 +537,52 @@ class Chip(Element):
         """
         return self.make_grid_locations(tsv_box, delta_x=self.tsv_grid_spacing, delta_y=self.tsv_grid_spacing)
 
+    def insert_tsvs(self, tsv, translations):
+        """
+        Insert the tsv element at locations specified in the translations list
+
+        Args:
+            tsv: An instance of a TSV class
+            translations: A list of pya.DVector elements specifying
+
+        """
+        for translation in translations:
+            self.insert_cell(tsv, pya.DTrans(translation))
+
     def _produce_ground_tsvs(self, face_id=[0, 2], tsv_box=None): # pylint: disable=dangerous-default-value
         """Produces ground TSVs between bottom and top face.
 
          The TSVs avoid ground grid avoidance on both faces, and keep a minimum distance to any existing (manually
          placed) TSVs.
          """
-        self.__log.info(f'Starting ground TSV generation on face(s) {[self.face_ids[f_id] for f_id in face_id]}')
+        logging.info(f'Starting ground TSV generation on face(s) {[self.face_ids[f_id] for f_id in face_id]}')
+
+        def region_from_layer(layer_name, f_id):
+            return pya.Region(self.cell.begin_shapes_rec(self.get_layer(layer_name, f_id)))
+
+        # Produce avoidance regions before adding tsv elements
+        avoidance_region = pya.Region()
+        avoidance_to_element_region = pya.Region()
+        avoidance_existing_tsv_region = pya.Region()
+        for f_id in face_id:
+            avoidance_region += (region_from_layer("ground_grid_avoidance", f_id)
+                                 + region_from_layer("through_silicon_via_avoidance", f_id))
+            avoidance_to_element_region += (region_from_layer("indium_bump", f_id)
+                                            + region_from_layer("base_metal_gap_wo_grid", f_id))
+            avoidance_existing_tsv_region += region_from_layer("through_silicon_via", f_id)
+        avoidance_region.merge()
+        avoidance_to_element_region.merge()
+        avoidance_existing_tsv_region.merge()
+        existing_tsv_count = avoidance_existing_tsv_region.count()
+
+        def filter_locations(filter_region, separation, input_locations):
+            sized_tsv = tsv_size_polygon.sized(separation / self.layout.dbu)
+            test_region = pya.Region([sized_tsv.moved(pos) for pos in input_locations])
+            test_region.merged_semantics = False
+            pass_region = test_region.outside(filter_region)
+            output_locations = [p.bbox().center() for p in pass_region]
+            return output_locations
+
         tsv = self.add_element(Tsv, n=self.n, face_ids=[self.face_ids[f_id] for f_id in face_id])
 
         # Determine the shape of the tsv from its through_silicon_via layer. Assumes that when merged the tsv
@@ -549,29 +601,6 @@ class Chip(Element):
         locations = self.get_ground_tsv_locations(tsv_box)
         locations_itype = [pya.Vector(pos.to_itype(self.layout.dbu)) for pos in locations]
 
-        def region_from_layer(layer_name, f_id):
-            return pya.Region(self.cell.begin_shapes_rec(self.get_layer(layer_name, f_id))).merged()
-
-        avoidance_region = (region_from_layer("ground_grid_avoidance", face_id[0])
-                            + region_from_layer("through_silicon_via_avoidance", face_id[0])
-                            + region_from_layer("ground_grid_avoidance", face_id[1])
-                            + region_from_layer("through_silicon_via_avoidance", face_id[1])).merged()
-
-        avoidance_to_element_region = (region_from_layer("base_metal_gap_wo_grid", face_id[0])
-                                       + region_from_layer("indium_bump", face_id[0])
-                                       + region_from_layer("base_metal_gap_wo_grid", face_id[0])
-                                       + region_from_layer("indium_bump", face_id[1])).merged()
-        avoidance_existing_tsv_region = region_from_layer("through_silicon_via", face_id[1])
-        existing_tsv_count = avoidance_existing_tsv_region.count()
-
-        def filter_locations(filter_region, separation, input_locations):
-            sized_tsv = tsv_size_polygon.sized(separation / self.layout.dbu)
-            test_region = pya.Region([sized_tsv.moved(pos) for pos in input_locations])
-            test_region.merged_semantics = False
-            pass_region = test_region.outside(filter_region)
-            output_locations = [p.bbox().center() for p in pass_region]
-            return output_locations
-
         locations_itype = filter_locations(avoidance_region, 0, locations_itype)
         locations_itype = filter_locations(avoidance_existing_tsv_region,
                                            self.tsv_edge_to_tsv_edge_separation, locations_itype)
@@ -580,10 +609,9 @@ class Chip(Element):
 
         tsv_locations = [pos.to_dtype(self.layout.dbu) for pos in locations_itype]
 
-        for location in tsv_locations:
-            self.insert_cell(tsv, pya.DTrans(location))
+        self.insert_tsvs(tsv, tsv_locations)
 
-        self.__log.info(f'Found {existing_tsv_count} existing TSVs and inserted {len(tsv_locations)} ground TSVs, '
+        logging.info(f'Found {existing_tsv_count} existing TSVs and inserted {len(tsv_locations)} ground TSVs, '
                         + f'totalling {existing_tsv_count + len(tsv_locations)} TSVs.')
 
         return tsv_locations

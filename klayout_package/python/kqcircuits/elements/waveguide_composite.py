@@ -19,8 +19,8 @@
 import ast
 from itertools import zip_longest
 from typing import Tuple
-from math import pi, tan
-from autologging import logged
+from math import pi, tan, floor
+import logging
 
 from scipy.optimize import root_scalar
 
@@ -37,6 +37,7 @@ from kqcircuits.elements.meander import Meander
 from kqcircuits.elements.waveguide_coplanar import WaveguideCoplanar
 from kqcircuits.elements.waveguide_coplanar_taper import WaveguideCoplanarTaper
 from kqcircuits.elements.flip_chip_connectors.flip_chip_connector_rf import FlipChipConnectorRf
+from kqcircuits.elements.waveguide_coplanar_splitter import WaveguideCoplanarSplitter
 
 
 class Node:
@@ -176,9 +177,8 @@ class Node:
 
 @add_parameters_from(WaveguideCoplanarTaper, taper_length=100)
 @add_parameters_from(Airbridge, "airbridge_type")
-@add_parameters_from(WaveguideCoplanar, "term1", "term2", "add_metal")
+@add_parameters_from(WaveguideCoplanar, "term1", "term2", "add_metal", "ground_grid_in_trace")
 @add_parameters_from(FlipChipConnectorRf)
-@logged
 class WaveguideComposite(Element):
     """A composite waveguide made of waveguides and other elements.
 
@@ -201,7 +201,9 @@ class WaveguideComposite(Element):
     FlipChipConnector, respectively and change the defaults too.
 
     The ``ab_across=True`` parameter places a single airbridge across the node. The ``n_bridges=N``
-    parameter puts N airbridges evenly distributed across the preceding edge.
+    parameter puts N airbridges evenly distributed across the preceding edge. If ``n_bridges=-1`` the number of bridges
+    will be calculated automatically from ``ab_to_ab_spacing`` and ``ab_to_node_clearance``, with the former defining
+    the density of airbridges and the latter the clearance from the start and end node of the straight segment.
 
     The ``length_before`` parameter of a node can be specified to automatically set the length of
     the waveguide between that node and the previous one. It will in fact create a Meander element
@@ -229,6 +231,8 @@ class WaveguideComposite(Element):
     gui_path_shadow = Param(pdt.TypeShape, "Hidden path to detect GUI operations",
                             pya.DPath([pya.DPoint(0, 0), pya.DPoint(200, 0)], 1), hidden=True)
     tight_routing = Param(pdt.TypeBoolean, "Tight routing for corners", False)
+    ab_to_ab_spacing = Param(pdt.TypeDouble, "Spacing between consecutive airbridges", 500, unit="μm")
+    ab_to_node_clearance = Param(pdt.TypeDouble, "Spacing between an airbridge and a node", 100, unit="μm")
 
     @classmethod
     def create(cls, layout, library=None, **parameters):
@@ -445,7 +449,7 @@ class WaveguideComposite(Element):
         self.old_id = self.face_ids[0]
 
         for i, node in enumerate(self._nodes):
-            self.__log.debug(f' Node #{i}: ({node.position.x:.2f}, {node.position.y:.2f}), {node.element.__class__},'
+            logging.debug(f' Node #{i}: ({node.position.x:.2f}, {node.position.y:.2f}), {node.element.__class__},'
                              f' {node.params}')
             if 'face_id' in node.params:
                 self.new_id = node.params['face_id']
@@ -456,10 +460,10 @@ class WaveguideComposite(Element):
                 self.add_metal = node.params['add_metal']
 
             if node.element is None:
-                if 'a' in node.params or 'b' in node.params:
-                    self._add_taper(i)
-                elif 'face_id' in node.params:
+                if self.new_id != self.old_id:
                     self._add_layer_changing_element(i)
+                elif 'a' in node.params or 'b' in node.params:
+                    self._add_taper(i)
             else:
                 self.check_node_type(node, i)
 
@@ -512,6 +516,9 @@ class WaveguideComposite(Element):
         taper_cell = self.add_element(WaveguideCoplanarTaper, **{**params, 'a2': a, 'b2': b, 'm2': self.margin})
         self._insert_cell_and_waveguide(ind, taper_cell)
 
+        if 'r' in node.params:
+            self.r = params['r']
+
         self.a = a
         self.b = b
 
@@ -525,10 +532,21 @@ class WaveguideComposite(Element):
 
         params['face_ids'] = [self.old_id, self.new_id]
 
+        # Allow face changing elements to change waveguide widths
+        new_a, new_b = params.get('a', self.a), params.get('b', self.b)
+        if not (new_a == self.a and new_b == self.b):
+            params['a2'], params['b2'] = new_a, new_b
+            params['a'], params['b'] = self.a, self.b
+
         fc_cell = self.add_element(element, **params)
 
         self._insert_cell_and_waveguide(ind, fc_cell, before=f'{self.old_id}_port', after=f'{self.new_id}_port')
-        self.face_ids = [self.new_id] + [a for a in self.face_ids if a != self.new_id]
+
+        self.a, self.b = new_a, new_b
+        self.face_ids = [self.new_id]
+
+        if 'r' in node.params:
+            self.r = params['r']
 
     def _add_airbridge(self, ind, **kwargs):
         """Add an airbridge with tapers at both sides and change default a/b if required."""
@@ -553,6 +571,9 @@ class WaveguideComposite(Element):
         cell = self.add_element(AirbridgeConnection, **params)
         self._insert_cell_and_waveguide(ind, cell)
 
+        if 'r' in node.params:
+            self.r = params['r']
+
         self.a, self.b = a, b
 
     def _add_simple_element(self, ind):
@@ -563,6 +584,9 @@ class WaveguideComposite(Element):
 
         cell = self.add_element(node.element, **params)
         self._insert_cell_and_waveguide(ind, cell, node.inst_name, *node.align)
+
+        if 'r' in node.params and not node.element is WaveguideCoplanarSplitter:
+            self.r = params['r']
 
     def _insert_cell_and_waveguide(self, ind, cell, inst_name=None, before="port_a", after="port_b"):
         """Place a cell and create the preceding waveguide.
@@ -615,13 +639,13 @@ class WaveguideComposite(Element):
             return vector_length_and_direction(self._nodes[prev + 1].position - self._nodes[prev].position)[1]
         return get_direction(fixed_angle)
 
-    def _insert_wg_cell(self, points, start_index, end_index):
+    def _insert_wg_cell(self, points, start_index, end_index, **params):
         """Create and insert waveguide cell.
         Avoid termination if in the middle or if the ends are actual elements.
         """
         if len(points) < 2:
             return
-        params = {**self.pcell_params_by_name(WaveguideCoplanar), "path": points}
+        params.update({**self.pcell_params_by_name(WaveguideCoplanar), "path": points})
         if start_index != 0 or self._nodes[start_index].element:
             params['term1'] = 0
         if end_index != len(self._nodes) - 1 or self._nodes[end_index].element:
@@ -758,10 +782,11 @@ class WaveguideComposite(Element):
                 n0 = n1
                 p0 = p1
                 point0 = [] if end_len < 1e-4 else [meander_end]
-            elif "n_bridges" in node1.params and node1.params["n_bridges"] > 0:
+            elif "n_bridges" in node1.params and node1.params["n_bridges"] != 0:
                 ab_len = node1.params['bridge_length'] if "bridge_length" in node1.params else None
                 self._ab_across(points[p1-1], points[p1], node1.params["n_bridges"], ab_len)
-        self._insert_wg_cell(point0 + points[p0:], n0, end_index)
+
+        self._insert_wg_cell(point0 + points[p0:], n0, end_index, **node1.params)
 
         # Keep track of current position, direction, and index for the future elements
         self._wg_start_pos = points[-1]
@@ -772,24 +797,32 @@ class WaveguideComposite(Element):
         self._wg_start_idx = end_index
 
     def _ab_across(self, start, end, num, ab_len=None):
-        """Creates ``num`` airbridge crossings equally distributed between ``start`` and ``end``.
-        If ``num == 0`` then one airbridge crossing is created at the node. ``ab_len`` is the airbridges' lenght.
+        """Creates airbridges between ``start`` and ``end``.
+        If num > 0, num is the number of airbridges equally distributed between ``start`` and ``end``.
+        If num == 0, then one airbridge is created at the end node.
+        If num < 0, the number of airbridges is determined by self.ab_to_node_clearance and self.ab_to_ab_spacing.
+        ab_len is the length of airbridges.
         """
+        # determine airbridge distribution
+        v_dir = end - start
+        if num > 0:
+            xs = [i / (num + 1) for i in range(1, num + 1)]
+        elif num == 0:
+            xs = [1.0]
+        else:
+            v_length = v_dir.length()
+            final_num = floor((v_length - 2 * self.ab_to_node_clearance) / self.ab_to_ab_spacing) + 1
+            if final_num <= 0:
+                return
+            xs = [(self.ab_to_node_clearance + i * self.ab_to_ab_spacing) / v_length for i in range(final_num)]
 
+        # add airbridges
         params = {'airbridge_type': self.airbridge_type}
         if ab_len:
             params['bridge_length'] = ab_len
         ab_cell = self.add_element(Airbridge, **params)
-        v_dir = end - start
-        alpha = get_angle(v_dir)
-
-        if num > 0:
-            for i in range(1, num + 1):
-                ab_trans = pya.DCplxTrans(1, alpha, False, start + i * v_dir / (num + 1))
-                self.insert_cell(ab_cell, ab_trans)
-        else:
-            ab_trans = pya.DCplxTrans(1, alpha, False, end)
-            self.insert_cell(ab_cell, ab_trans)
+        for x in xs:
+            self.insert_cell(ab_cell, pya.DCplxTrans(1, get_angle(v_dir), False, start + x * v_dir))
 
     def _terminator(self, ind):
         """Terminate the waveguide ending with an Element."""

@@ -16,15 +16,12 @@
 # for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
 
 
-from autologging import logged
-
 from kqcircuits.elements.element import Element
 from kqcircuits.util.parameters import Param, pdt
 from kqcircuits.defaults import default_tsv_type
 from kqcircuits.elements.tsvs import tsv_type_choices
 
 
-@logged
 class Tsv(Element):
     """Base Class for TSVs."""
 
@@ -32,6 +29,7 @@ class Tsv(Element):
 
     tsv_type = Param(pdt.TypeString, "TSV type", default_tsv_type, choices=tsv_type_choices)
     tsv_diameter = Param(pdt.TypeDouble, "TSV diameter", 100, unit="μm")
+    tsv_margin = Param(pdt.TypeDouble, "TSV margin", 30, unit="μm")
 
     @classmethod
     def create(cls, layout, library=None, tsv_type=None, **parameters):
