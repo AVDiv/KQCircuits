@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from importlib import import_module
@@ -56,13 +57,14 @@ class KqcElemParamsDirective(Directive):
     sys.path in conf.py.
 
     """
+
     required_arguments = 1
 
     def run(self):
         module_path = self.arguments[0]
         module = import_module(module_path)
 
-        targetpng = f'pcell_images/{module.__name__}.png'
+        targetpng = f"pcell_images/{module.__name__}.png"
         if not os.path.isfile(targetpng):
             copyfile("images/empty.png", targetpng)
 
@@ -100,7 +102,9 @@ class KqcElemParamsDirective(Directive):
                     parameter_paragraph += nodes.literal("", param.kwargs["unit"])
                 if "choices" in param.kwargs.keys():
                     parameter_paragraph += nodes.emphasis("", ", choices=")
-                    choices_list = [choice if isinstance(choice, str) else choice[1] for choice in param.kwargs["choices"]]
+                    choices_list = [
+                        choice if isinstance(choice, str) else choice[1] for choice in param.kwargs["choices"]
+                    ]
                     parameter_paragraph += nodes.literal("", str(choices_list))
 
                 parameters_list += nodes.list_item("", parameter_paragraph)

@@ -12,23 +12,27 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from enum import Enum, auto
 
 from kqcircuits.pya_resolver import pya
 
+
 class LabelOrigin(Enum):
-    """Origin of the Text PCell. One of the four corners of the cell bounding box
-    """
+    """Origin of the Text PCell. One of the four corners of the cell bounding box"""
+
     BOTTOMLEFT = auto()
     BOTTOMRIGHT = auto()
     TOPLEFT = auto()
     TOPRIGHT = auto()
 
-def produce_label(cell, label, location, origin, origin_offset, margin, layers, layer_protection, size=350,
-                  mirror=False):
+
+def produce_label(
+    cell, label, location, origin, origin_offset, margin, layers, layer_protection, size=350, mirror=False
+):
     """Produces a Text PCell accounting for desired relative position of the text respect to the given location
     and the spacing.
 
@@ -52,32 +56,41 @@ def produce_label(cell, label, location, origin, origin_offset, margin, layers, 
     if not label:
         label = "A13"  # longest label on 6 inch wafer
         protection_only = True
+    elif label.startswith("_"):
+        label = "".join(["M"] + ["0"] * int(label.split("_")[1]))
+        protection_only = True
     else:
         protection_only = False
 
     # text cell
     subcells = []
     for layer in layers:
-        subcells.append(layout.create_cell("TEXT", "Basic", {
-            "layer": layer,
-            "text": label,
-            "mag": size/350*500,
-        }))
+        subcells.append(
+            layout.create_cell(
+                "TEXT",
+                "Basic",
+                {
+                    "layer": layer,
+                    "text": label,
+                    "mag": size / 350 * 500,
+                },
+            )
+        )
 
     # relative placement with margin
     relative_placement = {
         LabelOrigin.BOTTOMLEFT: pya.Vector(
-            subcells[0].dbbox().p1.x - margin - origin_offset,
-            subcells[0].dbbox().p1.y - margin - origin_offset),
+            subcells[0].dbbox().p1.x - margin - origin_offset, subcells[0].dbbox().p1.y - margin - origin_offset
+        ),
         LabelOrigin.TOPLEFT: pya.Vector(
-            subcells[0].dbbox().p1.x - margin - origin_offset,
-            subcells[0].dbbox().p2.y + margin + origin_offset),
+            subcells[0].dbbox().p1.x - margin - origin_offset, subcells[0].dbbox().p2.y + margin + origin_offset
+        ),
         LabelOrigin.TOPRIGHT: pya.Vector(
-            subcells[0].dbbox().p2.x + margin + origin_offset,
-            subcells[0].dbbox().p2.y + margin + origin_offset),
+            subcells[0].dbbox().p2.x + margin + origin_offset, subcells[0].dbbox().p2.y + margin + origin_offset
+        ),
         LabelOrigin.BOTTOMRIGHT: pya.Vector(
-            subcells[0].dbbox().p2.x + margin + origin_offset,
-            subcells[0].dbbox().p1.y - margin - origin_offset),
+            subcells[0].dbbox().p2.x + margin + origin_offset, subcells[0].dbbox().p1.y - margin - origin_offset
+        ),
     }[origin] * (-1)
 
     if mirror:
@@ -90,7 +103,8 @@ def produce_label(cell, label, location, origin, origin_offset, margin, layers, 
             cell.insert(pya.DCellInstArray(subcell.cell_index(), trans))
 
     # protection layer with margin
-    protection = pya.DBox(pya.DPoint(subcells[0].dbbox().p1.x - margin, subcells[0].dbbox().p1.y - margin),
-                          pya.DPoint(subcells[0].dbbox().p2.x + margin, subcells[0].dbbox().p2.y + margin))
-    cell.shapes(layout.layer(layer_protection)).insert(
-        trans.trans(protection))
+    protection = pya.DBox(
+        pya.DPoint(subcells[0].dbbox().p1.x - margin, subcells[0].dbbox().p1.y - margin),
+        pya.DPoint(subcells[0].dbbox().p2.x + margin, subcells[0].dbbox().p2.y + margin),
+    )
+    cell.shapes(layout.layer(layer_protection)).insert(trans.trans(protection))

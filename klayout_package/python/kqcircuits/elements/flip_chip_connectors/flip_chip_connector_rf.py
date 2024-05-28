@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import logging
@@ -54,7 +55,7 @@ class FlipChipConnectorRf(FlipChipConnector):
     def build(self):
 
         # Flip-chip bump
-        bump = self.add_element(FlipChipConnectorDc, face_ids=self.face_ids)
+        bump = self._get_bump()
         for i in range(self.n_center_bumps):
             self.insert_cell(bump, pya.DTrans((i - (self.n_center_bumps - 1) / 2) * self.inter_bump_distance, 0))
         bump_ref = self.get_refpoints(bump)
@@ -66,8 +67,11 @@ class FlipChipConnectorRf(FlipChipConnector):
         if self.round_connector:
             # Rounded geometry
             def rounded_plate(center_x, width, length):
-                reg = pya.Region(pya.DBox(center_x - length / 2, -width / 2,
-                                          center_x + length / 2, width / 2).to_itype(self.layout.dbu))
+                reg = pya.Region(
+                    pya.DBox(center_x - length / 2, -width / 2, center_x + length / 2, width / 2).to_itype(
+                        self.layout.dbu
+                    )
+                )
                 return reg.rounded_corners(0, min(width, length) / (2 * self.layout.dbu), self.n)
 
             def trace(start_x, width, length):
@@ -79,31 +83,37 @@ class FlipChipConnectorRf(FlipChipConnector):
 
             def produce_shape(face, a, b, rotation, trace_rotation):
                 # Base metal gap outline
-                trace_dtrans = pya.DCplxTrans(1, trace_rotation, False, - bumps_length / 2, 0)
+                trace_dtrans = pya.DCplxTrans(1, trace_rotation, False, -bumps_length / 2, 0)
                 trace_itrans = trace_dtrans.to_itrans(self.layout.dbu)
-                region = rounded_plate(0, w, length) + trace(0, a + 2 * b, - w / 2).transformed(trace_itrans)
+                region = rounded_plate(0, w, length) + trace(0, a + 2 * b, -w / 2).transformed(trace_itrans)
 
                 # Ground grid avoidance
                 avoid_region = region.sized(self.margin / self.layout.dbu, self.margin / self.layout.dbu, 2)
 
                 # Subtract circles under bumps
                 for i in range(self.n_center_bumps):
-                    region -= rounded_plate((i - (self.n_center_bumps - 1) / 2) * self.inter_bump_distance,
-                                            self.connector_a, self.connector_a)
+                    region -= rounded_plate(
+                        (i - (self.n_center_bumps - 1) / 2) * self.inter_bump_distance,
+                        self.connector_a,
+                        self.connector_a,
+                    )
 
                 # Subtract input trace with possible rotation
-                region -= trace(0, a, - w / 2).transformed(trace_itrans)
+                region -= trace(0, a, -w / 2).transformed(trace_itrans)
 
                 # Subtract trace connecting the series bumps
-                region -= trace(- bumps_length / 2, a, bumps_length)
+                region -= trace(-bumps_length / 2, a, bumps_length)
 
                 dtrans = pya.DCplxTrans(1, rotation, False, 0, 0)
                 itrans = dtrans.to_itrans(self.layout.dbu)
                 self.cell.shapes(self.get_layer("base_metal_gap_wo_grid", face)).insert(region.transformed(itrans))
                 self.add_protection(avoid_region.transformed(itrans), face)
-                self.add_port("{}_port".format(self.face_ids[face]),
-                              dtrans * pya.DPoint(-bumps_length/2, 0) + trace_dtrans * dtrans * pya.DVector(-w/2, 0),
-                              trace_dtrans * dtrans * pya.DVector(-1, 0), face)
+                self.add_port(
+                    "{}_port".format(self.face_ids[face]),
+                    dtrans * pya.DPoint(-bumps_length / 2, 0) + trace_dtrans * dtrans * pya.DVector(-w / 2, 0),
+                    trace_dtrans * dtrans * pya.DVector(-1, 0),
+                    face,
+                )
 
             produce_shape(0, self.a, self.b, 0, 0)
             produce_shape(1, a2, b2, 180, self.output_rotation - 180)
@@ -111,16 +121,75 @@ class FlipChipConnectorRf(FlipChipConnector):
         else:
             # Taper geometry
             s = self.ubm_diameter + (self.n_center_bumps - 1) * self.inter_bump_distance
-            trans = pya.DCplxTrans(1, 0, False, bump_ref["base"] + pya.DPoint(- self.ubm_diameter - s / 2, 0))
+            trans = pya.DCplxTrans(1, 0, False, bump_ref["base"] + pya.DPoint(-self.ubm_diameter - s / 2, 0))
             tt = pya.DCplxTrans(1, self.output_rotation, False, 0, 0)
-            self.insert_cell(Launcher, trans, self.face_ids[0], s=s, l=self.ubm_diameter,
-                             a_launcher=self.connector_a, b_launcher=self.connector_b,
-                             launcher_frame_gap=self.connector_b)
-            self.insert_cell(Launcher, tt * trans, self.face_ids[1], s=s, l=self.ubm_diameter,
-                             a_launcher=self.connector_a, b_launcher=self.connector_b,
-                             launcher_frame_gap=self.connector_b, face_ids=[self.face_ids[1], self.face_ids[0]],
-                             a=a2, b=b2)
+            self.insert_cell(
+                Launcher,
+                trans,
+                self.face_ids[0],
+                s=s,
+                l=self.ubm_diameter,
+                a_launcher=self.connector_a,
+                b_launcher=self.connector_b,
+                launcher_frame_gap=self.connector_b,
+            )
 
+            # If there are many center bumps and output direction is not colinear with the input direction than a simple
+            # Launcher won't do. For arbitrary angles we use two Launcher objects one to cover the parallel part, like
+            # in the colinear case, but without the tapering part and we add a second short Launcher rotated to the
+            # right output direction. Additionally, we use the metal addition layer to get rid of the parts where one
+            # Launcher's gap overlaps with the others center conductor.
+            add_metal = False
+            if int(self.output_rotation) not in (0, 180) and self.n_center_bumps > 1:
+                ubm = self.ubm_diameter
+                ibm = self.inter_bump_distance
+                l = (self.n_center_bumps - 1) * ibm / 2
+                pts = [
+                    pya.DPoint(l - ibm, ubm / 2),
+                    pya.DPoint(l, ubm / 2),
+                    pya.DPoint(l, -ubm / 2),
+                    pya.DPoint(l - ibm, -ubm / 2),
+                ]
+                self.cell.shapes(self.get_layer("base_metal_addition", self.face_ids[1])).insert(pya.DPolygon(pts))
+
+                lc = ubm * 1.5
+                ts = pya.DCplxTrans(1, 180, False, -lc, 0)
+                self.insert_cell(
+                    Launcher,
+                    ts * trans,
+                    None,
+                    s=s - lc,
+                    l=ubm,
+                    a_launcher=self.connector_a,
+                    b_launcher=self.connector_b,
+                    launcher_frame_gap=self.connector_b,
+                    face_ids=[self.face_ids[1], self.face_ids[0]],
+                    a=ubm,
+                    b=ubm,
+                )
+                s = ubm
+                trans = pya.DCplxTrans(1, 0, False, bump_ref["base"] + pya.DPoint(-ubm - s / 2, 0))
+                tt = pya.DCplxTrans(1, self.output_rotation, False, (self.n_center_bumps - 1) / 2 * ibm, 0)
+                add_metal = True
+
+            self.insert_cell(
+                Launcher,
+                tt * trans,
+                self.face_ids[1],
+                s=s,
+                l=self.ubm_diameter,
+                a_launcher=self.connector_a,
+                b_launcher=self.connector_b,
+                launcher_frame_gap=self.connector_b,
+                face_ids=[self.face_ids[1], self.face_ids[0]],
+                a=a2,
+                b=b2,
+                add_metal=add_metal,
+            )
+
+        self._insert_ground_bumps(bump)
+
+    def _insert_ground_bumps(self, bump):
         # Insert ground bumps
         if self.connector_type == "GSG":
             self.insert_cell(bump, pya.DCplxTrans(1, 0, False, 0, self.inter_bump_distance))
@@ -132,6 +201,9 @@ class FlipChipConnectorRf(FlipChipConnector):
             self.insert_cell(bump, pya.DCplxTrans(1, 0, False, -dist_x, dist_y))
             self.insert_cell(bump, pya.DCplxTrans(1, 0, False, dist_x, -dist_y))
             self.insert_cell(bump, pya.DCplxTrans(1, 0, False, -dist_x, -dist_y))
+
+    def _get_bump(self):
+        return self.add_element(FlipChipConnectorDc, face_ids=self.face_ids)
 
     @classmethod
     def get_sim_ports(cls, simulation):

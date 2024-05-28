@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 # This is a Python 2.7 script that should be run in Ansys Electronics Desktop in order to create capacitance matrix
@@ -24,7 +25,7 @@ import time
 
 import ScriptEnv
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'util'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "util"))
 from util import get_enabled_setup, get_enabled_sweep  # pylint: disable=wrong-import-position,no-name-in-module
 
 # Set up environment
@@ -49,23 +50,19 @@ if design_type == "HFSS":
 
         ports = oBoundarySetup.GetExcitations()[::2]
 
-        for (i, port_i) in enumerate(ports):
-            for (j, port_j) in enumerate(ports):
+        for i, port_i in enumerate(ports):
+            for j, port_j in enumerate(ports):
                 # PI model admittance element
                 if i == j:
                     # admittance yii between port i and ground
-                    expression = " + ".join(
-                        ["Yt(%s,%s)" % (port_i, port_k) for port_k in ports])
+                    expression = " + ".join(["Yt(%s,%s)" % (port_i, port_k) for port_k in ports])
                 else:
                     # admittance yij between port i and j
                     expression = "-Yt(%s,%s)" % (port_i, port_j)
 
                 oOutputVariable.CreateOutputVariable(
-                    "yy_%s_%s" % (port_i, port_j),
-                    expression,
-                    solution,
-                    "Terminal Solution Data",
-                    [])
+                    "yy_%s_%s" % (port_i, port_j), expression, solution, "Terminal Solution Data", []
+                )
 
                 # Estimate capacitance vs frequency assuming capacitive elements
                 oOutputVariable.CreateOutputVariable(
@@ -73,16 +70,17 @@ if design_type == "HFSS":
                     "im(yy_%s_%s)/(2*pi*Freq)" % (port_i, port_j),
                     solution,
                     "Terminal Solution Data",
-                    [])
+                    [],
+                )
 
 elif design_type == "Q3D Extractor":
     setup = get_enabled_setup(oDesign, tab="General")
     nets = oBoundarySetup.GetExcitations()[::2]
     net_types = oBoundarySetup.GetExcitations()[1::2]
-    signal_nets = [net for net, net_type in zip(nets, net_types) if net_type == 'SignalNet']
+    signal_nets = [net for net, net_type in zip(nets, net_types) if net_type == "SignalNet"]
 
-    for (i, net_i) in enumerate(signal_nets):
-        for (j, net_j) in enumerate(signal_nets):
+    for i, net_i in enumerate(signal_nets):
+        for j, net_j in enumerate(signal_nets):
             if i == j:
                 expression = " + ".join(["C({},{})".format(net_i, net_k) for net_k in signal_nets])
             else:
@@ -93,7 +91,8 @@ elif design_type == "Q3D Extractor":
                 expression,
                 setup + " : LastAdaptive",
                 "Matrix",
-                ["Context:=", "Original"])
+                ["Context:=", "Original"],
+            )
 
 # Notify the end of script
 oDesktop.AddMessage("", "", 0, "The capacitive PI model created (%s)" % time.asctime(time.localtime()))

@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import numpy
@@ -33,7 +34,8 @@ def make_grid(boundbox, avoid_region, grid_step=10, grid_size=5, group_n=10):
 
     Returns:
         grid region
-  """
+    """
+
     def grid_region(box, step, size):
         square = pya.Box(0, 0, size, size)
         x_region = pya.Region()

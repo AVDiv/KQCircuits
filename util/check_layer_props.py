@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 # Check the default_layer_props.lyp or the file given as the first argument with values taken from
@@ -53,12 +54,13 @@ _layer_template = """
 
 _layer_groups = []
 
+
 def _add_new_layer(root, layers, name):
     """Add a new layer property entry."""
     ids = layers[name]
     src = f"'{name}' {ids[0]}/{ids[1]}@1"
     reply = input(f"Add missing layer ({src}) to properties file? (y/N)\n")
-    if reply.lower() not in ('yes', 'y'):
+    if reply.lower() not in ("yes", "y"):
         return
 
     new = ET.XML(_layer_template)
@@ -95,17 +97,17 @@ def check_file(file_name, diagnostic_mode=True):
 
     errcnt = 0
     old_layers = []
-    layers = {name.replace('_', ' ') : (ids.layer, ids.datatype) for name, ids in default_layers.items()}
+    layers = {name.replace("_", " "): (ids.layer, ids.datatype) for name, ids in default_layers.items()}
 
     tree = ET.parse(file_name)
     root = tree.getroot()
 
     for prop in root.iter("properties"):
-        if prop.find("source").text == '*/*@*':
+        if prop.find("source").text == "*/*@*":
             _layer_groups.append(prop.find("name").text)
 
     for src in root.iter("source"):
-        if src.text == '*/*@*':
+        if src.text == "*/*@*":
             continue
 
         name, lid, dt, extra = re.match(r"^'?([^']+)'? (\d+)/(\d+)(.+)", src.text).groups()
@@ -118,7 +120,7 @@ def check_file(file_name, diagnostic_mode=True):
                     print("layer index mismatch in:", src.text)
                     continue
                 reply = input(f"Fix mismatched layer id in '{name}'? (y/N)\n")
-                if reply.lower() in ('yes', 'y'):
+                if reply.lower() in ("yes", "y"):
                     src.text = f"'{name}' {ids[0]}/{ids[1]}{extra}"
         else:
             if diagnostic_mode:
@@ -126,7 +128,7 @@ def check_file(file_name, diagnostic_mode=True):
                 print("unused layer in properties file:", src.text)
                 continue
             reply = input(f"Remove unnecessary layer ({src.text}) from properties file? (y/N)\n")
-            if reply.lower() in ('yes', 'y'):
+            if reply.lower() in ("yes", "y"):
                 src.text = None
 
     if not diagnostic_mode:
@@ -155,10 +157,11 @@ if __name__ == "__main__":
 
     if len(sys.argv) > 1 and not sys.argv[-1].endswith(".lyp"):
         from importlib import import_module
-        import_module(sys.argv.pop())  # load optional module to modify default_layers
-    from kqcircuits.defaults import default_layers  #pylint: disable=wrong-import-position
 
-    props_file = Path(__file__).parents[1]/"klayout_package/python/kqcircuits/layer_config/default_layer_props.lyp"
+        import_module(sys.argv.pop())  # load optional module to modify default_layers
+    from kqcircuits.defaults import default_layers  # pylint: disable=wrong-import-position
+
+    props_file = Path(__file__).parents[1] / "klayout_package/python/kqcircuits/layer_config/default_layer_props.lyp"
     if len(sys.argv) > 1:
         props_file = Path(sys.argv[1])
 

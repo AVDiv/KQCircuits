@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 import logging
 import sys
@@ -23,18 +24,23 @@ from kqcircuits.pya_resolver import pya
 from kqcircuits.simulations.export.ansys.ansys_export import export_ansys
 from kqcircuits.simulations.export.simulation_export import export_simulation_oas, sweep_simulation
 from kqcircuits.simulations.simulation import Simulation
-from kqcircuits.util.export_helper import create_or_empty_tmp_directory, get_active_or_new_layout, \
-    open_with_klayout_or_default_application
+from kqcircuits.util.export_helper import (
+    create_or_empty_tmp_directory,
+    get_active_or_new_layout,
+    open_with_klayout_or_default_application,
+)
 
 
 class InternalPortCalibration(Simulation):
-    """ Left half of the ground plane is etched away, and a waveguide is added from the center towards the right. """
+    """Left half of the ground plane is etched away, and a waveguide is added from the center towards the right."""
 
     def build(self):
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(
-            pya.DBox(pya.DPoint(self.box.left + 10, self.box.bottom + 10),
-                     pya.DPoint(self.box.center().x, self.box.top - 10)))
-        self.produce_waveguide_to_port(self.box.center(), pya.DPoint(self.box.right, self.box.center().y), 1, 'right')
+            pya.DBox(
+                pya.DPoint(self.box.left + 10, self.box.bottom + 10), pya.DPoint(self.box.center().x, self.box.top - 10)
+            )
+        )
+        self.produce_waveguide_to_port(self.box.center(), pya.DPoint(self.box.right, self.box.center().y), 1, "right")
 
 
 # Prepare output directory
@@ -43,24 +49,24 @@ dir_path = create_or_empty_tmp_directory(Path(__file__).stem + "_output")
 # Simulation parameters
 sim_class = InternalPortCalibration  # pylint: disable=invalid-name
 sim_parameters = {
-    'name': 'port_sim',
-    'use_internal_ports': True,
-    'use_ports': True,
-    'box': pya.DBox(pya.DPoint(0, 0), pya.DPoint(500, 500)),
-    'waveguide_length': 10,
-    'face_stack': ['1t1', '2b1'],  # chip distance default at 8um
-    'a': 3.5, #readout structure a in flip chip
-    'b': 32  #readout structure b in flip chip
+    "name": "port_sim",
+    "use_internal_ports": True,
+    "use_ports": True,
+    "box": pya.DBox(pya.DPoint(0, 0), pya.DPoint(500, 500)),
+    "waveguide_length": 10,
+    "face_stack": ["1t1", "2b1"],  # chip distance default at 8um
+    "a": 3.5,  # readout structure a in flip chip
+    "b": 32,  # readout structure b in flip chip
 }
 export_parameters = {
-    'path': dir_path,
-    'max_delta_s': 0.0001,
-    'maximum_passes': 40,
-    'frequency': 5,
-    'sweep_start': 1,
-    'sweep_end': 5,
-    'sweep_count': 4,
-    'exit_after_run': True
+    "path": dir_path,
+    "max_delta_s": 0.0001,
+    "maximum_passes": 40,
+    "frequency": 5,
+    "sweep_start": 1,
+    "sweep_end": 5,
+    "sweep_count": 4,
+    "exit_after_run": True,
 }
 
 # Get layout
@@ -74,10 +80,8 @@ layout = get_active_or_new_layout()
 #     'waveguide_length': [1, 10, 20, 50, 100]
 # })
 
-#Fixed geometry simulation
-simulations = sweep_simulation(layout, sim_class, sim_parameters, {
-    'waveguide_length': [1, 10, 20, 50, 100]
-})
+# Fixed geometry simulation
+simulations = sweep_simulation(layout, sim_class, sim_parameters, {"waveguide_length": [1, 10, 20, 50, 100]})
 
 # Export Ansys files
 export_ansys(simulations, **export_parameters)

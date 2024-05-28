@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 from kqcircuits.elements.element import Element
 from kqcircuits.pya_resolver import pya
 from kqcircuits.util.geometry_helper import region_with_merged_polygons
@@ -63,8 +64,9 @@ def merge_layout_layers_on_face(layout, cell, face, tolerance=0.004):
     res.insert(grid)
 
 
-def convert_child_instances_to_static(layout: pya.Layout, cell: pya.Cell, only_elements: bool = True,
-                                      prune: bool = True):
+def convert_child_instances_to_static(
+    layout: pya.Layout, cell: pya.Cell, only_elements: bool = True, prune: bool = True
+):
     """Convert child instances of a cell to static.
 
     This function avoids duplicating cells: in case there are multiple instances pointing to the same PCell, only

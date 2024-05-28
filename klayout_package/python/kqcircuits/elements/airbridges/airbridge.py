@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -46,8 +47,8 @@ class Airbridge(Element):
         # transform cell to have 'port_a' at (0, l/2) and 'port_b' at (0, -l/2), where l is distance between ports
         if not code_generated:
             ref_points = get_refpoints(layout.layer(default_layers["refpoints"]), cell)
-            center = (ref_points['port_a'] + ref_points['port_b']) / 2
-            orientation = get_angle(ref_points['port_a'] - ref_points['port_b'])
+            center = (ref_points["port_a"] + ref_points["port_b"]) / 2
+            orientation = get_angle(ref_points["port_a"] - ref_points["port_b"])
             cell.transform(pya.DCplxTrans(1.0, 90 - orientation, False, -center))
 
         return cell
@@ -70,3 +71,6 @@ class Airbridge(Element):
     def _produce_top_pads_and_bridge(self, pts):
         shape = pya.DPolygon(pts)
         self.cell.shapes(self.get_layer("airbridge_flyover")).insert(shape)
+
+    def transformation_from_shape_impl(self):  # pylint: disable=no-self-use
+        return pya.Trans()

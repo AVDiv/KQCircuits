@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 """
 This is a geometry diff tool to compare .oas or .gds files using LayoutDiff.
@@ -48,7 +49,7 @@ def _load_oas_file(layout, file_name):
 
 def _filediff(files):
     diff = pya.LayoutDiff()
-    smart = diff.SmartCellMapping if '-s' in argv else 0
+    smart = diff.SmartCellMapping if "-s" in argv else 0
     a, b = files
     l1 = pya.Layout()
     l2 = pya.Layout()
@@ -76,8 +77,8 @@ if __name__ == "__main__":
             print("Only compares OASIS and GDS files!")
             die(-1)
         d = _filediff((a, b))
-        if d and '-k' in argv:
-            subprocess.call((klayout_executable_command(), '-rx', '-t', '-i', '-s', d[0], d[1]))
+        if d and "-k" in argv:
+            subprocess.call((klayout_executable_command(), "-rx", "-t", "-i", "-s", d[0], d[1]))
         die(0)
     elif not (a.is_dir() and b.is_dir()):
         print("This command expects either two files or two directories!")
@@ -85,9 +86,9 @@ if __name__ == "__main__":
 
     workdir = Path.cwd()
     os.chdir(a)
-    da = set(list(Path().rglob('*.gds')) + list(Path().rglob('*.oas')))
+    da = set(list(Path().rglob("*.gds")) + list(Path().rglob("*.oas")))
     os.chdir(b)
-    db = set(list(Path().rglob('*.gds')) + list(Path().rglob('*.oas')))
+    db = set(list(Path().rglob("*.gds")) + list(Path().rglob("*.oas")))
     os.chdir(workdir)
 
     for f in da - db:
@@ -96,8 +97,8 @@ if __name__ == "__main__":
         print("B only:", f)
 
     file_pairs = ((a.joinpath(f), b.joinpath(f)) for f in sorted(list(db & da)))
-    pmap = Pool(int(argv[argv.index('-c') + 1])).map if  '-c' in argv else map  # pylint: disable=consider-using-with
+    pmap = Pool(int(argv[argv.index("-c") + 1])).map if "-c" in argv else map  # pylint: disable=consider-using-with
 
     for d in pmap(_filediff, file_pairs):
-        if d and '-k' in argv:
-            subprocess.call((klayout_executable_command(), '-rx', '-t', '-i', '-s', d[0], d[1]))
+        if d and "-k" in argv:
+            subprocess.call((klayout_executable_command(), "-rx", "-t", "-i", "-s", d[0], d[1]))

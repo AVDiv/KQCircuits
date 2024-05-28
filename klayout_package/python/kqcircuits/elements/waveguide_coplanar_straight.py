@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.elements.element import Element
@@ -24,7 +25,7 @@ from kqcircuits.util.parameters import Param, pdt
 class WaveguideCoplanarStraight(Element):
     """The PCell declaration of a straight segment of a coplanar waveguide.
 
-   .. MARKERS_FOR_PNG 15,8 15,0
+    .. MARKERS_FOR_PNG 15,8 15,0
     """
 
     l = Param(pdt.TypeDouble, "Length", 30)
@@ -38,7 +39,7 @@ class WaveguideCoplanarStraight(Element):
             pya.DPoint(0, self.a / 2 + 0),
             pya.DPoint(self.l, self.a / 2 + 0),
             pya.DPoint(self.l, self.a / 2 + self.b),
-            pya.DPoint(0, self.a / 2 + self.b)
+            pya.DPoint(0, self.a / 2 + self.b),
         ]
         shape_1 = pya.DPolygon(pts)
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape_1)
@@ -48,11 +49,10 @@ class WaveguideCoplanarStraight(Element):
             pya.DPoint(0, -self.a / 2 + 0),
             pya.DPoint(self.l, -self.a / 2 + 0),
             pya.DPoint(self.l, -self.a / 2 - self.b),
-            pya.DPoint(0, -self.a / 2 - self.b)
+            pya.DPoint(0, -self.a / 2 - self.b),
         ]
         shape_2 = pya.DPolygon(pts)
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape_2)
-
 
         # Protection layer
         if self.ground_grid_in_trace:
@@ -60,12 +60,7 @@ class WaveguideCoplanarStraight(Element):
             self.add_protection(shape_2.sized(1))
         else:
             w = self.a / 2 + self.b + self.margin
-            pts = [
-                pya.DPoint(0, -w),
-                pya.DPoint(self.l, -w),
-                pya.DPoint(self.l, w),
-                pya.DPoint(0, w)
-            ]
+            pts = [pya.DPoint(0, -w), pya.DPoint(self.l, -w), pya.DPoint(self.l, w), pya.DPoint(0, w)]
             self.add_protection(pya.DPolygon(pts))
 
         # Waveguide length

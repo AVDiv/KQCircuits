@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.masks.mask_set import MaskSet
@@ -21,11 +22,13 @@ from kqcircuits.masks.mask_set import MaskSet
 
 def test_box_map_identical_boxes():
 
-    box_map = {"A": [
-        ["A", "B", "C"],
-        ["D", "E", "F"],
-        ["G", "H", "I"],
-    ]}
+    box_map = {
+        "A": [
+            ["A", "B", "C"],
+            ["D", "E", "F"],
+            ["G", "H", "I"],
+        ]
+    }
 
     mask_map = [
         ["A", "A", "A", "A", "A"],
@@ -70,7 +73,7 @@ def test_box_map_different_boxes():
             ["1", "2", "3"],
             ["4", "5", "6"],
             ["7", "8", "9"],
-        ]
+        ],
     }
 
     mask_map = [

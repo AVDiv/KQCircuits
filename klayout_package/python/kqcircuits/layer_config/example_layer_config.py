@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 # An example layer config file, compatible with most KQC chips.
@@ -91,11 +92,7 @@ default_covered_region_excluded_layers = None
 mask_bitmap_export_layers = None
 all_layers_bitmap_hide_layers = None
 chip_export_layer_clusters = None
-default_path_length_layers = [
-    "1_wg_path",
-    "2_wg_path",
-    "waveguide_length"
-]
+default_path_length_layers = ["1_wg_path", "2_wg_path", "waveguide_length"]
 default_mask_parameters = {
     "1": {
         "dice_width": 200,

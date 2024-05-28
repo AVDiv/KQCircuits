@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -56,9 +57,12 @@ class Fluxline(Element):
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(left_gap)
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(right_gap)
         # protection
-        protection = pya.Region([p.to_itype(self.layout.dbu) for p in [right_gap, left_gap]]
-                                ).bbox().enlarged(self.margin/self.layout.dbu, self.margin/self.layout.dbu)
-        self.cell.shapes(self.get_layer("ground_grid_avoidance")).insert(pya.Polygon(protection))
+        protection = (
+            pya.Region([p.to_itype(self.layout.dbu) for p in [right_gap, left_gap]])
+            .bbox()
+            .enlarged(self.margin / self.layout.dbu, self.margin / self.layout.dbu)
+        )
+        self.add_protection(pya.Polygon(protection))
 
     def _add_fluxline_refpoints(self, port_ref):
         """Adds refpoints for "port_flux" and "port_flux_corner".

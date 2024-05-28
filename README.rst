@@ -28,6 +28,9 @@ API.
    :target: https://iqm-finland.github.io/KQCircuits/index.html
    :alt: Click for documentation
 
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+   :target: https://github.com/psf/black
+   :alt: Black badge
 
 ----
 
@@ -43,7 +46,6 @@ export a set of files for a mask as needed for QPU fabrication.
    :alt: QPU design workflow
    :width: 700
 
-⠀
 
 .. image:: /docs/images/readme/single_xmons_chip_3.png
    :alt: Example layout
@@ -52,7 +54,7 @@ Getting started
 ---------------
 
 KQCircuits is a KLayout extension. KLayout can be used either using a graphical user interface or as
-a standalone python module. KQCircuits supports both modes of operation. For the first time users,
+a standalone python module. For the first time users,
 the graphical user interface (GUI) mode is recommended.
 
 Video tutorials for the GUI installation can be found on YouTube.
@@ -93,40 +95,61 @@ Video tutorials for the GUI installation can be found on YouTube.
    </div>
 
 
-Install
-^^^^^^^
+Install GUI
+^^^^^^^^^^^
 
-KQCircuits can be used in either Salt package or developer setup mode.
+`First install KLayout <https://www.klayout.de/build.html>`__.
+Afterwards you can install KQCircuits as a plug-in to use KQCircuits features
+within your KLayout GUI editor session.
+
+Salt installation
+"""""""""""""""""
+
+To quickly try out KQCircuits GUI features we recommend installing the Salt package of KQCircuits
+inside your KLayout application.
 The Salt package is easier to install and get started, but the built-in elements cannot be modified.
-The developer setup is recommended for advanced users and to contribute to the project.
-
-Salt installation and getting started
-"""""""""""""""""""""""""""""""""""""
-
-Follow the instructions in the `getting started documentation <https://iqm-finland.github.io/KQCircuits/salt.html>`__.
+`See Salt installation guide here  <https://iqm-finland.github.io/KQCircuits/salt.html>`__.
 
 Developer setup
 """""""""""""""
 
-`Install KLayout <https://www.klayout.de/build.html>`__ and run:
+The developer setup is recommended for advanced users who want to modify KQCircuits code and to contribute to the project.
+
+After installing KLayout run:
 
 .. code-block:: console
 
    python setup_within_klayout.py
 
-then KLayout will contain KQCircuits.
-You may have to write ``python3`` or ``py`` instead of ``python`` depending on your OS and Python installation,
-just make sure that the command refers to Python 3. For further details see the `developer setup
+For further details see the `developer setup
 documentation <https://iqm-finland.github.io/KQCircuits/developer/setup.html>`__.
 
-For stand-alone mode run
+Install standalone python module
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Installing KQCircuits as a standalone python module allows you to use KQCircuits features
+in your own python code with:
 
 .. code-block:: console
 
-   python -m pip install -e "klayout_package/python[docs,tests]"
+   import kqcircuits
 
-Then scripts may be run and documentation can be built. For further details see the `documentation
-<https://iqm-finland.github.io/KQCircuits/developer/setup.html>`__.
+You will also get access to kqc related terminal commands such as:
+
+.. code-block:: console
+
+   kqc mask quick_demo.py              # To build a wafer mask, in this case quick_demo.py
+   kqc sim waveguides_sim_compare.py   # To export and run waveguide simulation
+
+For standalone installation run command
+
+.. code-block:: console
+
+   python -m pip install -e "klayout_package/python[docs,tests,sim]"
+
+For improved security you can also validate the fetched dependencies of KQCircuits.
+Further details available in the `documentation
+<https://iqm-finland.github.io/KQCircuits/developer/standalone.html>`__.
 
 Documentation
 -------------
@@ -183,7 +206,8 @@ Contributing
 
 Contributions to KQC are welcome from the community. Contributors are expected to accept IQM
 Individual Contributor License Agreement by filling `a form at IQM website
-<https://meetiqm.com/developers/clas>`__. See also section `Contributing
+<https://www.meetiqm.com/technology/iqm-kqcircuits#iqm-contributor-license-agreement>`__.
+See also section `Contributing
 <https://iqm-finland.github.io/KQCircuits/contributing.html>`__ in the
 documentation.
 
@@ -198,7 +222,7 @@ Copyright
 
 This code is part of KQCircuits
 
-Copyright (C) 2021-2023 IQM Finland Oy
+Copyright (C) 2021-2024 IQM Finland Oy
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
@@ -211,13 +235,13 @@ You should have received a copy of the GNU General Public License along with thi
 https://www.gnu.org/licenses/gpl-3.0.html.
 
 The software distribution should follow IQM trademark policy for open-source software
-(`meetiqm.com/developers/osstmpolicy <https://meetiqm.com/developers/osstmpolicy/>`__).
+(`meetiqm.com/iqm-open-source-trademark-policy <https://meetiqm.com/iqm-open-source-trademark-policy/>`__).
 IQM welcomes contributions to the code. Please see our contribution agreements for individuals
-(`meetiqm.com/developers/clas/individual <https://meetiqm.com/developers/clas/individual/>`__)
-and organizations (`meetiqm.com/developers/clas/organization <https://meetiqm.com/developers/clas/organization/>`__).
+(`meetiqm.com/iqm-individual-contributor-license-agreement <https://meetiqm.com/iqm-individual-contributor-license-agreement/>`__)
+and organizations (`meetiqm.com/iqm-organization-contributor-license-agreement <https://meetiqm.com/iqm-organization-contributor-license-agreement/>`__).
 
 Trademarks
 ----------
 
 KQCircuits is a registered trademark of IQM. Please see
-`IQM open source software trademark policy <https://meetiqm.com/developers/osstmpolicy>`__.
+`IQM open source software trademark policy <https://meetiqm.com/iqm-open-source-trademark-policy>`__.

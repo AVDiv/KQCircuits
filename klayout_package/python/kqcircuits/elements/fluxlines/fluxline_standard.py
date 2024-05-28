@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -23,7 +24,7 @@ from kqcircuits.elements.fluxlines.fluxline import Fluxline
 class FluxlineStandard(Fluxline):
     """Fluxline variant "standard".
 
-     .. MARKERS_FOR_PNG 9,-21 11,-17 -10,-9.7
+    .. MARKERS_FOR_PNG 9,-21 11,-17 -10,-9.7
     """
 
     def build(self):
@@ -37,26 +38,30 @@ class FluxlineStandard(Fluxline):
         l2 = 50  # length of taper to waveguide port
 
         # origin at edge of the qubit gap
-        right_gap = pya.DPolygon([
-            pya.DPoint(-w / 2 - fa / 2, -fa),
-            pya.DPoint(w / 2 + fa / 2 + fb, -fa),
-            pya.DPoint(w / 2 + fa / 2 + fb, -fa - l1),
-            pya.DPoint(a / 2 + b, -fa - l1 - l2),
-            pya.DPoint(a / 2, -fa - l1 - l2),
-            pya.DPoint(w / 2 + fa / 2, -fa - l1),
-            pya.DPoint(w / 2 + fa / 2, -fa - fb),
-            pya.DPoint(-w / 2 - fa / 2, -fa - fb)
-        ])
-        left_gap = pya.DPolygon([
-            pya.DPoint(-w / 2 - fa / 2, -2 * fa - fb),
-            pya.DPoint(w / 2 - fa / 2, -2 * fa - fb),
-            pya.DPoint(w / 2 - fa / 2, -fa - l1),
-            pya.DPoint(-a / 2, -fa - l1 - l2),
-            pya.DPoint(-a / 2 - b, -fa - l1 - l2),
-            pya.DPoint(w / 2 - fa / 2 - fb, -fa - l1),
-            pya.DPoint(w / 2 - fa / 2 - fb, -2 * fa - 2 * fb),
-            pya.DPoint(-w / 2 - fa / 2, -2 * fa - 2 * fb)
-        ])
+        right_gap = pya.DPolygon(
+            [
+                pya.DPoint(-w / 2 - fa / 2, -fa),
+                pya.DPoint(w / 2 + fa / 2 + fb, -fa),
+                pya.DPoint(w / 2 + fa / 2 + fb, -fa - l1),
+                pya.DPoint(a / 2 + b, -fa - l1 - l2),
+                pya.DPoint(a / 2, -fa - l1 - l2),
+                pya.DPoint(w / 2 + fa / 2, -fa - l1),
+                pya.DPoint(w / 2 + fa / 2, -fa - fb),
+                pya.DPoint(-w / 2 - fa / 2, -fa - fb),
+            ]
+        )
+        left_gap = pya.DPolygon(
+            [
+                pya.DPoint(-w / 2 - fa / 2, -2 * fa - fb),
+                pya.DPoint(w / 2 - fa / 2, -2 * fa - fb),
+                pya.DPoint(w / 2 - fa / 2, -fa - l1),
+                pya.DPoint(-a / 2, -fa - l1 - l2),
+                pya.DPoint(-a / 2 - b, -fa - l1 - l2),
+                pya.DPoint(w / 2 - fa / 2 - fb, -fa - l1),
+                pya.DPoint(w / 2 - fa / 2 - fb, -2 * fa - 2 * fb),
+                pya.DPoint(-w / 2 - fa / 2, -2 * fa - 2 * fb),
+            ]
+        )
 
         self._insert_fluxline_shapes(left_gap, right_gap)
         self._add_fluxline_refpoints(pya.DPoint(0, -fa - l1 - l2))

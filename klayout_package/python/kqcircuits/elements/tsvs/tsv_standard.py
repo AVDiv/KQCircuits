@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from kqcircuits.elements.tsvs.tsv import Tsv
 from kqcircuits.util.geometry_helper import circle_polygon
@@ -34,4 +35,4 @@ class TsvStandard(Tsv):
         margin = circle_polygon(self.tsv_diameter / 2 + self.tsv_margin, self.n)
         self.cell.shapes(self.get_layer("ground_grid_avoidance")).insert(margin)
         self.cell.shapes(self.get_layer("ground_grid_avoidance", 1)).insert(margin)
-        del self.refpoints['base']
+        del self.refpoints["base"]

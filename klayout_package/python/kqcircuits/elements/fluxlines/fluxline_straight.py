@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -25,15 +26,16 @@ from kqcircuits.elements.fluxlines.fluxline import Fluxline
 class FluxlineStraight(Fluxline):
     """Fluxline variant "straight vertical".
 
-     .. MARKERS_FOR_PNG -4,-6 0,-7
+    .. MARKERS_FOR_PNG -4,-6 0,-7
     """
+
     fluxline_width = Param(pdt.TypeDouble, "Fluxline width", 0, unit="μm", hidden=True)
 
     def build(self):
 
         b = self.fluxline_gap_width
-        a = (self.a/self.b)*b  # fluxline center width
-        l1 = 2*b  # straight down
+        a = (self.a / self.b) * b  # fluxline center width
+        l1 = 2 * b  # straight down
         bottom_y = -b - l1
 
         # origin at edge of the qubit gap
@@ -58,4 +60,4 @@ class FluxlineStraight(Fluxline):
         left_gap = pya.DPolygon(left_gap_pts)
 
         self._insert_fluxline_shapes(left_gap, right_gap)
-        self._add_fluxline_refpoints(pya.DPoint(-a/2 - b/2 + x_offset, bottom_y))
+        self._add_fluxline_refpoints(pya.DPoint(-a / 2 - b / 2 + x_offset, bottom_y))

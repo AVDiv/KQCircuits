@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 """M001 mask.
 
@@ -29,11 +30,13 @@ from kqcircuits.masks.mask_set import MaskSet
 
 m001 = MaskSet(name="M001", version=2, with_grid=False)
 
-box_map = {"A": [
-    ["AB1", "AB2", "QSG"],
-    ["QSA", "QSC", "QDG"],
-    ["QDA", "QDC", "QDD"],
-]}
+box_map = {
+    "A": [
+        ["AB1", "AB2", "QSG"],
+        ["QSA", "QSC", "QDG"],
+        ["QDA", "QDC", "QDD"],
+    ]
+}
 
 mask_map = [
     ["A", "A", "A", "A", "A"],
@@ -45,6 +48,7 @@ mask_map = [
 
 m001.add_mask_layout(MaskSet.chips_map_from_box_map(box_map, mask_map))
 
+# fmt: off
 parameters_qd = {
     "res_lengths": [4649.6, 4743.3, 4869.9, 4962.9, 5050.7, 5138.7, 5139., 5257., 5397.4, 5516.8, 5626.6, 5736.2,
                     5742.9, 5888.7, 6058.3, 6202.5, 6350., 6489.4],
@@ -58,6 +62,7 @@ parameters_qd = {
     "res_a": [10] * 18,
     "res_b": [6] * 18
 }
+# fmt: on
 
 parameters_qs = {
     "res_lengths": [4649.6, 4908.9, 5208.5, 5516.8, 5848.9, 6217.4],
@@ -66,13 +71,17 @@ parameters_qs = {
     "n_fingers": [4, 4, 2, 4, 4, 4],
     "res_beg": ["galvanic"] * 6,
     "res_a": [10] * 6,
-    "res_b": [6] * 6
+    "res_b": [6] * 6,
 }
 
 # Let's generate a static OASIS file first:
 view_2 = KLayoutView()
-view_2.insert_cell(QualityFactor, name_chip="QDD", name_mask="M001",
-                 **{**parameters_qd, 'n_ab': 18 * [5], 'res_term': 18 * ["airbridge"]})
+view_2.insert_cell(
+    QualityFactor,
+    name_chip="QDD",
+    name_mask="M001",
+    **{**parameters_qd, "n_ab": 18 * [5], "res_term": 18 * ["airbridge"]},
+)
 save_opts = pya.SaveLayoutOptions()
 save_opts.write_context_info = True
 file_name = str(TMP_PATH / "m001_QDD.oas")
@@ -82,16 +91,18 @@ view_2.close()
 print("Loading:", file_name)
 m001.add_chip(file_name, "QDD")
 
-m001.add_chip([
-    (AirbridgeCrossings, "AB1", {'crossings': 1}),
-    (AirbridgeCrossings, "AB2", {'crossings': 10}),
-    (QualityFactor, "QSG", {**parameters_qs, 'n_ab': 6 * [0], 'res_term': 6 * ["galvanic"]}),
-    (QualityFactor, "QSA", {**parameters_qs, 'n_ab': 6 * [0], 'res_term': 6 * ["airbridge"]}),
-    (QualityFactor, "QSC", {**parameters_qs, 'n_ab': 6 * [5], 'res_term': 6 * ["galvanic"]}),
-    (QualityFactor, "QDG", {**parameters_qd, 'n_ab': 18 * [0], 'res_term': 18 * ["galvanic"]}),
-    (QualityFactor, "QDA", {**parameters_qd, 'n_ab': 18 * [0], 'res_term': 18 * ["airbridge"]}),
-    (QualityFactor, "QDC", {**parameters_qd, 'n_ab': 18 * [5], 'res_term': 18 * ["galvanic"]}),
-])
+m001.add_chip(
+    [
+        (AirbridgeCrossings, "AB1", {"crossings": 1}),
+        (AirbridgeCrossings, "AB2", {"crossings": 10}),
+        (QualityFactor, "QSG", {**parameters_qs, "n_ab": 6 * [0], "res_term": 6 * ["galvanic"]}),
+        (QualityFactor, "QSA", {**parameters_qs, "n_ab": 6 * [0], "res_term": 6 * ["airbridge"]}),
+        (QualityFactor, "QSC", {**parameters_qs, "n_ab": 6 * [5], "res_term": 6 * ["galvanic"]}),
+        (QualityFactor, "QDG", {**parameters_qd, "n_ab": 18 * [0], "res_term": 18 * ["galvanic"]}),
+        (QualityFactor, "QDA", {**parameters_qd, "n_ab": 18 * [0], "res_term": 18 * ["airbridge"]}),
+        (QualityFactor, "QDC", {**parameters_qd, "n_ab": 18 * [5], "res_term": 18 * ["galvanic"]}),
+    ]
+)
 
 m001.build()
 m001.export()

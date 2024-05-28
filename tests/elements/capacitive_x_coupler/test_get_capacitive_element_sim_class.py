@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from kqcircuits.elements.capacitive_x_coupler import CapacitiveXCoupler
 from kqcircuits.pya_resolver import pya
@@ -25,10 +26,12 @@ def test_can_create(get_simulation):
 
 # TODO: refactor so box doesn't need to be specified.
 def test_ansys_export_produces_output_files(perform_test_ansys_export_produces_output_files):
-    perform_test_ansys_export_produces_output_files(CapacitiveXCoupler,
-                                                    box=pya.DBox(pya.DPoint(-250, -250), pya.DPoint(250, 250)))
+    perform_test_ansys_export_produces_output_files(
+        CapacitiveXCoupler, box=pya.DBox(pya.DPoint(-250, -250), pya.DPoint(250, 250))
+    )
 
 
 def test_sonnet_export_produces_output_files(perform_test_sonnet_export_produces_output_files):
-    perform_test_sonnet_export_produces_output_files(CapacitiveXCoupler,
-                                                     box=pya.DBox(pya.DPoint(-250, -250), pya.DPoint(250, 250)))
+    perform_test_sonnet_export_produces_output_files(
+        CapacitiveXCoupler, box=pya.DBox(pya.DPoint(-250, -250), pya.DPoint(250, 250))
+    )

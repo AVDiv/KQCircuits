@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -34,7 +35,7 @@ def add_parameters_from(cls, /, *param_names, **param_with_default_value):
         **param_with_default_value: dictionary of parameter names and new default values
     """
 
-    invert = (not param_names and not param_with_default_value)
+    invert = not param_names and not param_with_default_value
     if param_names and param_names[0] == "*":
         param_names = param_names[1:]
         invert = True
@@ -77,7 +78,7 @@ def add_parameter(cls, name, **change):
     def _decorate(obj):
         p = schema[name]
         if change:  # Redefine the parameter in case of any change
-            kwargs = {**p.kwargs, "description":p.description, "default": p.default, **change}
+            kwargs = {**p.kwargs, "description": p.description, "default": p.default, **change}
             p = Param(p.data_type, **kwargs)
         setattr(obj, name, p)
         p.__set_name__(obj, name)
@@ -88,6 +89,7 @@ def add_parameter(cls, name, **change):
 
 class pdt:  # pylint: disable=invalid-name
     """A namespace for pya.PCellParameterDeclaration types."""
+
     TypeDouble = pya.PCellParameterDeclaration.TypeDouble
     TypeInt = pya.PCellParameterDeclaration.TypeInt
     TypeList = pya.PCellParameterDeclaration.TypeList
@@ -110,7 +112,7 @@ class Param:
         * ``docstring``: Longer description of the parameter that gets used by Sphinx to generate API docs.
     """
 
-    _index = {} # A private dictionary of parameter dictionaries indexed by owner classes' name
+    _index = {}  # A private dictionary of parameter dictionaries indexed by owner classes' name
 
     @classmethod
     def get_all(cls, owner):
@@ -123,7 +125,7 @@ class Param:
             a name-to-Param dictionary of all parameters of class `owner` or an empty one if it has none.
         """
 
-        owner_name = f'{owner.__module__}.{owner.__qualname__}'
+        owner_name = f"{owner.__module__}.{owner.__qualname__}"
         if owner_name in cls._index:
             return cls._index[owner_name]
         else:
@@ -137,7 +139,7 @@ class Param:
 
     def __set_name__(self, owner, name):
         self.name = name
-        owner_name = f'{owner.__module__}.{owner.__qualname__}'
+        owner_name = f"{owner.__module__}.{owner.__qualname__}"
         if owner_name not in self._index:
             self._index[owner_name] = {}
         self._index[owner_name][name] = self
@@ -145,9 +147,9 @@ class Param:
     def __get__(self, obj, objtype):
         if obj is None or not hasattr(obj, "_param_values") or obj._param_values is None:
             return self.default
-        if hasattr(obj, "_param_value_map"):    # Element
+        if hasattr(obj, "_param_value_map"):  # Element
             return obj._param_values[obj._param_value_map[self.name]]
-        else:                                   # Simulation
+        else:  # Simulation
             return obj._param_values[self.name]
 
     def __set__(self, obj, value):

@@ -12,15 +12,18 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.elements.element import Element
 from kqcircuits.pya_resolver import pya
-from kqcircuits.util.parameters import Param, pdt
+from kqcircuits.util.parameters import Param, pdt, add_parameters_from
+from kqcircuits.elements.waveguide_coplanar import WaveguideCoplanar
 
 
+@add_parameters_from(WaveguideCoplanar, "add_metal")
 class Launcher(Element):
     """The PCell declaration for a launcher for connecting wirebonds.
 
@@ -48,8 +51,10 @@ class Launcher(Element):
             pya.DPoint(self.l + self.s, self.a_launcher / 2),
             pya.DPoint(self.l + self.s, -self.a_launcher / 2),
             pya.DPoint(self.l, -self.a_launcher / 2),
-            pya.DPoint(0, -self.a / 2 + 0)
+            pya.DPoint(0, -self.a / 2 + 0),
         ]
+        if self.add_metal:
+            self.cell.shapes(self.get_layer("base_metal_addition")).insert(pya.DPolygon(pts))
 
         shifts = [
             pya.DVector(0, self.b),

@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import logging
@@ -27,10 +28,14 @@ from kqcircuits.simulations.export.ansys.ansys_export import export_ansys
 from kqcircuits.simulations.export.elmer.elmer_export import export_elmer
 from kqcircuits.simulations.export.simulation_export import export_simulation_oas
 from kqcircuits.simulations.port import InternalPort
+from kqcircuits.simulations.post_process import PostProcess
 
 from kqcircuits.simulations.simulation import Simulation
-from kqcircuits.util.export_helper import create_or_empty_tmp_directory, get_active_or_new_layout, \
-    open_with_klayout_or_default_application
+from kqcircuits.util.export_helper import (
+    create_or_empty_tmp_directory,
+    get_active_or_new_layout,
+    open_with_klayout_or_default_application,
+)
 from kqcircuits.util.parameters import Param, pdt
 
 
@@ -42,7 +47,7 @@ class CpwCircleSim(Simulation):
         # Create circular waveguide
         r = self.length / (2 * pi)
         trans = pya.DTrans(0, False, self.box.center())
-        self.insert_cell(WaveguideCoplanarCurved, trans=trans, alpha=2*pi, r=r)
+        self.insert_cell(WaveguideCoplanarCurved, trans=trans, alpha=2 * pi, r=r)
 
         # Add an internal port
         ground_point = self.box.center() + pya.DVector(r - self.a / 2 - self.b, 0.0)
@@ -57,13 +62,13 @@ sim_class = CpwCircleSim  # pylint: disable=invalid-name
 
 # Simulation parameters, using multiface interdigital as starting point
 sim_parameters = {
-    'name': 'cpw_circle',
-    'box': pya.DBox(pya.DPoint(0, 0), pya.DPoint(2000, 2000)),
+    "name": "cpw_circle",
+    "box": pya.DBox(pya.DPoint(0, 0), pya.DPoint(2000, 2000)),
     "a": 10,
     "b": 6,
     "n": 256,
     "length": 3000,
-    "material_dict": {'silicon': {'permittivity': 11.43}}
+    "material_dict": {"silicon": {"permittivity": 11.43}},
 }
 use_elmer = True
 
@@ -77,23 +82,23 @@ simulations = [sim_class(layout, **sim_parameters)]
 # Export Ansys files
 if use_elmer:
     export_parameters = {
-        'path': dir_path,
-        'tool': 'capacitance',
-        'linear_system_method': 'mg',
+        "path": dir_path,
+        "tool": "capacitance",
+        "linear_system_method": "mg",
     }
     mesh_size = {
-        'global_max': 200.,
-        '1t1_gap&1t1_signal': 2.,
-        '1t1_gap&1t1_ground': 2.,
+        "global_max": 200.0,
+        "1t1_gap&1t1_signal": 2.0,
+        "1t1_gap&1t1_ground": 2.0,
     }
     workflow = {
-        'run_gmsh_gui': True,  # For GMSH: if true, the mesh is shown after it is done
-        'run_elmergrid': True,
-        'run_elmer': True,
-        'run_paraview': True,  # this is visual view of the results which can be removed to speed up the process
-        'gmsh_n_threads': -1,  # -1 means all the physical cores
-        'elmer_n_processes': -1,  # -1 means all the physical cores
-        'elmer_n_threads': 1,  # number of omp threads per process
+        "run_gmsh_gui": True,  # For GMSH: if true, the mesh is shown after it is done
+        "run_elmergrid": True,
+        "run_elmer": True,
+        "run_paraview": True,  # this is visual view of the results which can be removed to speed up the process
+        "gmsh_n_threads": -1,  # -1 means all the physical cores
+        "elmer_n_processes": -1,  # -1 means all the physical cores
+        "elmer_n_threads": 1,  # number of omp threads per process
     }
     export_elmer(
         simulations,
@@ -103,13 +108,13 @@ if use_elmer:
     )
 else:
     export_parameters = {
-        'path': dir_path,
-        'ansys_tool': 'q3d',
-        'exit_after_run': True,
-        'percent_error': 0.1,
-        'maximum_passes': 20,
-        'minimum_passes': 15,
-        'sweep_enabled': False
+        "path": dir_path,
+        "ansys_tool": "q3d",
+        "post_process": PostProcess("produce_cmatrix_table.py"),
+        "exit_after_run": True,
+        "percent_error": 0.1,
+        "maximum_passes": 20,
+        "minimum_passes": 15,
     }
     export_ansys(simulations, **export_parameters)
 

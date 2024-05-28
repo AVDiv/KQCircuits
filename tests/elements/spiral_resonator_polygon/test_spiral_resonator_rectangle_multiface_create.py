@@ -12,14 +12,16 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from kqcircuits.pya_resolver import pya
 from kqcircuits.util.geometry_helper import get_cell_path_length
 from kqcircuits.elements.spiral_resonator_polygon import SpiralResonatorPolygon, rectangular_parameters
 
 relative_length_tolerance = 1e-3
+
 
 def test_length_by_connector_location():
     len_begin = _get_waveguide_length(4200, 500, 400, 1000, 0)
@@ -33,11 +35,14 @@ def test_length_by_connector_location():
 def _get_waveguide_length(length, above_space, below_space, right_space, connector_dist):
     """Returns the relative error of the spiral resonator length with the given parameters."""
     layout = pya.Layout()
-    spiral_resonator_cell = SpiralResonatorPolygon.create(layout, **rectangular_parameters(
-                                                            length=length,
-                                                            above_space=above_space,
-                                                            below_space=below_space,
-                                                            right_space=right_space,
-                                                            connector_dist=connector_dist
-                                                            ))
+    spiral_resonator_cell = SpiralResonatorPolygon.create(
+        layout,
+        **rectangular_parameters(
+            length=length,
+            above_space=above_space,
+            below_space=below_space,
+            right_space=right_space,
+            connector_dist=connector_dist,
+        ),
+    )
     return get_cell_path_length(spiral_resonator_cell)

@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 # This is a Python 2.7 script that should be run in Ansys Electronics Desktop
@@ -34,50 +35,64 @@ oDesign.ChangeProperty(
         "NAME:AllTabs",
         [
             "NAME:HfssTab",
-            [
-                "NAME:PropServers",
-                "BoundarySetup:1"
-            ],
+            ["NAME:PropServers", "BoundarySetup:1"],
             [
                 "NAME:ChangedProps",
                 [
                     "NAME:Deembed Dist",
-                    "Value:=", "0um",
+                    "Value:=",
+                    "0um",
                     "NAME:Renorm All Terminals",
-                    "Value:=", False,
+                    "Value:=",
+                    False,
                     "NAME:Deembed",
-                    "Value:=", False,
-                ]
-            ]
-        ]
-    ])
+                    "Value:=",
+                    False,
+                ],
+            ],
+        ],
+    ]
+)
 oDesign.ChangeProperty(
     [
         "NAME:AllTabs",
         [
             "NAME:HfssTab",
-            [
-                "NAME:PropServers",
-                "BoundarySetup:2"
-            ],
+            ["NAME:PropServers", "BoundarySetup:2"],
             [
                 "NAME:ChangedProps",
                 [
                     "NAME:Deembed Dist",
-                    "Value:=", "0um",
+                    "Value:=",
+                    "0um",
                     "NAME:Renorm All Terminals",
-                    "Value:=", False,
+                    "Value:=",
+                    False,
                     "NAME:Deembed",
-                    "Value:=", False,
-                ]
-            ]
-        ]
-    ])
+                    "Value:=",
+                    False,
+                ],
+            ],
+        ],
+    ]
+)
 
 oModule = oDesign.GetModule("Solutions")
-oModule.ExportNetworkData("", ["Setup1:Sweep"], 3, os.path.join(path, basename + '_SMatrix_nodeembed.s2p'),
-                          [
-                              "All"
-                          ], False, 50, "S", -1, 0, 15, True, True, True)
+oModule.ExportNetworkData(
+    "",
+    ["Setup1:Sweep"],
+    3,
+    os.path.join(path, basename + "_SMatrix_nodeembed.s2p"),
+    ["All"],
+    False,
+    50,
+    "S",
+    -1,
+    0,
+    15,
+    True,
+    True,
+    True,
+)
 
 oProject.Save()

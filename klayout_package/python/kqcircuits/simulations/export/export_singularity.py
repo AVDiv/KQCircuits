@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 import subprocess
 from kqcircuits.defaults import ROOT_PATH
@@ -22,26 +23,45 @@ from kqcircuits.defaults import ROOT_PATH
 def export_singularity(remote_host: str, singularity_remote_path: str):
 
     if singularity_remote_path is None:
-        singularity_remote_path = '~/KQCircuits/singularity'
+        singularity_remote_path = "~/KQCircuits/singularity"
 
-    subprocess.call(['ssh', remote_host,
-                    'mkdir', '-p',
-                    singularity_remote_path,
-                    singularity_remote_path + '/libexec',
-                    singularity_remote_path + '/bin'])
+    subprocess.call(
+        [
+            "ssh",
+            remote_host,
+            "mkdir",
+            "-p",
+            singularity_remote_path,
+            singularity_remote_path + "/libexec",
+            singularity_remote_path + "/bin",
+        ]
+    )
 
-    subprocess.call(['scp',
-                    ROOT_PATH / 'singularity/libexec/kqclib',
-                    ROOT_PATH / 'singularity/libexec/kqclib.sh',
-                    remote_host + ':' + singularity_remote_path + '/libexec'])
+    subprocess.call(
+        [
+            "scp",
+            ROOT_PATH / "singularity/libexec/kqclib",
+            ROOT_PATH / "singularity/libexec/kqclib.sh",
+            remote_host + ":" + singularity_remote_path + "/libexec",
+        ]
+    )
 
-    subprocess.call(['scp',
-                     ROOT_PATH / 'singularity/create_links.sh',
-                     remote_host + ':' + singularity_remote_path])
+    subprocess.call(["scp", ROOT_PATH / "singularity/create_links.sh", remote_host + ":" + singularity_remote_path])
 
-
-    subprocess.call(['ssh', remote_host,
-                     'cd', singularity_remote_path, '&&',
-                     './create_links.sh', '&&',
-                     'mv', 'python', 'bin/python', '&&',
-                     'rm', 'bin/paraview'])
+    subprocess.call(
+        [
+            "ssh",
+            remote_host,
+            "cd",
+            singularity_remote_path,
+            "&&",
+            "./create_links.sh",
+            "&&",
+            "mv",
+            "python",
+            "bin/python",
+            "&&",
+            "rm",
+            "bin/paraview",
+        ]
+    )

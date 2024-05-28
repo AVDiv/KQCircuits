@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -70,39 +71,25 @@ def test_length_close_to_90_deg_turns():
 
 def test_continuity_short_meander():
     layout = pya.Layout()
-    meander_cell = Meander.create(layout,
-        start=pya.DPoint(0, 0),
-        end=pya.DPoint(800, 0),
-        length=1600,
-        meanders=4,
-        r=50
+    meander_cell = Meander.create(layout, start=pya.DPoint(0, 0), end=pya.DPoint(800, 0), length=1600, meanders=4, r=50)
+    assert WaveguideCoplanar.is_continuous(
+        meander_cell, layout.layer(default_layers["1t1_waveguide_path"]), continuity_tolerance
     )
-    assert WaveguideCoplanar.is_continuous(meander_cell, layout.layer(default_layers["1t1_waveguide_path"]),
-                                           continuity_tolerance)
 
 
 def test_continuity_long_meander():
     layout = pya.Layout()
-    meander_cell = Meander.create(layout,
-        start=pya.DPoint(0, 0),
-        end=pya.DPoint(2500, 0),
-        length=9000,
-        meanders=15,
-        r=50
+    meander_cell = Meander.create(
+        layout, start=pya.DPoint(0, 0), end=pya.DPoint(2500, 0), length=9000, meanders=15, r=50
     )
-    assert WaveguideCoplanar.is_continuous(meander_cell, layout.layer(default_layers["1t1_waveguide_path"]),
-                                           continuity_tolerance)
+    assert WaveguideCoplanar.is_continuous(
+        meander_cell, layout.layer(default_layers["1t1_waveguide_path"]), continuity_tolerance
+    )
 
 
 def test_bridges_horizontal_meander():
     layout = pya.Layout()
-    meander_cell = Meander.create(
-        layout,
-        start=pya.DPoint(0, 0),
-        end=pya.DPoint(1000, 0),
-        length=3000,
-        n_bridges=5
-    )
+    meander_cell = Meander.create(layout, start=pya.DPoint(0, 0), end=pya.DPoint(1000, 0), length=3000, n_bridges=5)
     bridge_positions = [
         pya.DPoint(273.244, 271.733),
         pya.DPoint(301.582, -221.366),
@@ -116,12 +103,7 @@ def test_bridges_horizontal_meander():
 def test_bridges_vertical_meander():
     layout = pya.Layout()
     meander_cell = Meander.create(
-        layout,
-        start=pya.DPoint(0, 0),
-        end=pya.DPoint(0, -1500),
-        length=4000,
-        meanders=4,
-        n_bridges=5
+        layout, start=pya.DPoint(0, 0), end=pya.DPoint(0, -1500), length=4000, meanders=4, n_bridges=5
     )
     bridge_positions = [
         pya.DPoint(346.573, -390.567),
@@ -135,13 +117,7 @@ def test_bridges_vertical_meander():
 
 def test_bridges_non_90_deg_turns():
     layout = pya.Layout()
-    meander_cell = Meander.create(
-        layout,
-        start=pya.DPoint(0, 0),
-        end=pya.DPoint(1200, 0),
-        length=1500,
-        n_bridges=6
-    )
+    meander_cell = Meander.create(layout, start=pya.DPoint(0, 0), end=pya.DPoint(1200, 0), length=1500, n_bridges=6)
     bridge_positions = [
         pya.DPoint(198.351, 75.475),
         pya.DPoint(348.247, -61.056),
@@ -156,12 +132,8 @@ def test_bridges_non_90_deg_turns():
 def _get_meander_length_error(meander_length, num_meanders, end, r):
     """Returns the relative error of the meander length for a meander with the given parameters."""
     layout = pya.Layout()
-    meander_cell = Meander.create(layout,
-        start=pya.DPoint(0, 0),
-        end=pya.DPoint(end, 0),
-        length=meander_length,
-        meanders=num_meanders,
-        r=r
+    meander_cell = Meander.create(
+        layout, start=pya.DPoint(0, 0), end=pya.DPoint(end, 0), length=meander_length, meanders=num_meanders, r=r
     )
     true_length = get_cell_path_length(meander_cell)
     relative_error = abs(true_length - meander_length) / meander_length

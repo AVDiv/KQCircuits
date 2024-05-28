@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.elements.airbridges.airbridge import Airbridge
@@ -47,7 +48,7 @@ class AirbridgeMultiFace(Airbridge):
         self.cell.shapes(self.get_layer("base_metal_addition", 1)).insert(shape)
 
         # Add ground grid avoidance to second face
-        self.add_protection(shape.enlarged(self.margin, self.margin), 1)
+        self.cell.shapes(self.get_layer("ground_grid_avoidance", 1)).insert(shape.enlarged(self.margin, self.margin))
 
         # Flip-chip bump
         if self.include_bumps:

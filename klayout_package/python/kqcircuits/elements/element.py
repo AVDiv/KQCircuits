@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import json
@@ -43,8 +44,17 @@ def get_refpoints(layer, cell, cell_transf=pya.DTrans(), rec_levels=None):
     return Refpoints(layer, cell, cell_transf, rec_levels)
 
 
-def insert_cell_into(target_cell, cell, trans=None, inst_name=None, label_trans=None, align_to=None, align=None,
-                     rec_levels=0, **parameters):
+def insert_cell_into(
+    target_cell,
+    cell,
+    trans=None,
+    inst_name=None,
+    label_trans=None,
+    align_to=None,
+    align=None,
+    rec_levels=0,
+    **parameters,
+):
     """Inserts a subcell into a given target cell.
 
     Note: This general method is useful to insert cells or elements into a static cell. To insert cells into an
@@ -92,6 +102,14 @@ def insert_cell_into(target_cell, cell, trans=None, inst_name=None, label_trans=
             cell_inst.set_property("label_trans", label_trans_str)
     return cell_inst, refpoints_abs
 
+
+def resolve_face(face_id, face_ids):
+    """Returns face_id if the parameter is given as string or face_ids[face_id] otherwise.
+    The face_id as a string must be a key in default_faces but does not necessarily need to be in face_ids.
+    """
+    return face_id if isinstance(face_id, str) else face_ids[face_id]
+
+
 class Element(pya.PCellDeclarationHelper):
     """Element PCell declaration.
 
@@ -110,12 +128,20 @@ class Element(pya.PCellDeclarationHelper):
     margin = Param(pdt.TypeDouble, "Margin of the protection layer", 5, unit="μm")
     face_ids = Param(pdt.TypeList, "Chip face IDs list", ["1t1", "2b1", "1b1", "2t1"])
     display_name = Param(pdt.TypeString, "Name displayed in GUI (empty for default)", "")
-    protect_opposite_face = Param(pdt.TypeBoolean, "Add opposite face protection too", False)
-    opposing_face_id_groups = Param(pdt.TypeList, "Opposing face ID groups (list of lists)", [["1t1", "2b1"]],
-                                    hidden=True)
+    protect_opposite_face = Param(
+        pdt.TypeBoolean,
+        "Add ground grid avoidance on opposing face",
+        False,
+        docstring="This applies only on signal carrying elements that typically include some " "metal between gaps.",
+    )
+    opposing_face_id_groups = Param(
+        pdt.TypeList, "Opposing face ID groups (list of lists)", [["1t1", "2b1"]], hidden=True
+    )
+    etch_opposite_face = Param(pdt.TypeBoolean, "Etch avoidance shaped gap on the opposite face too", False)
+    etch_opposite_face_margin = Param(pdt.TypeDouble, "Margin of the opposite face etch shape", 5, unit="μm")
 
     def __init__(self):
-        ""
+        """"""
         super().__init__()
 
         cls = type(self)
@@ -202,17 +228,18 @@ class Element(pya.PCellDeclarationHelper):
             del parameters[pname], parameters[f"_{pname}"]
             parameters = {**jp, **parameters}
 
-        if subtype in library_layout.pcell_names():   # code generated
+        if subtype in library_layout.pcell_names():  # code generated
             pcell_class = type(library_layout.pcell_declaration(subtype))
             return Element._create_cell(pcell_class, layout, library, **parameters), True
-        elif library_layout.cell(subtype):    # manually designed
+        elif library_layout.cell(subtype):  # manually designed
             return layout.create_cell(subtype, cl.LIBRARY_NAME), False
-        else:   # fallback is the default
+        else:  # fallback is the default
             return cl.create_subtype(layout, library, cl.default_type, **parameters)
 
     @classmethod
-    def create_with_refpoints(cls, layout, library=None, refpoint_transform=pya.DTrans(), rec_levels=None,
-                              **parameters):
+    def create_with_refpoints(
+        cls, layout, library=None, refpoint_transform=pya.DTrans(), rec_levels=None, **parameters
+    ):
         """Convenience function to create cell and return refpoints too.
 
         Args:
@@ -239,8 +266,9 @@ class Element(pya.PCellDeclarationHelper):
         parameters = self.pcell_params_by_name(cls, **parameters)
         return cls.create(self.layout, library=self.LIBRARY_NAME, **parameters)
 
-    def insert_cell(self, cell, trans=None, inst_name=None, label_trans=None, align_to=None, align=None, rec_levels=0,
-                    **parameters):
+    def insert_cell(
+        self, cell, trans=None, inst_name=None, label_trans=None, align_to=None, align=None, rec_levels=0, **parameters
+    ):
         """Inserts a subcell into the present cell.
 
         It will use the given `cell` object or if `cell` is an Element class' name then directly
@@ -272,8 +300,9 @@ class Element(pya.PCellDeclarationHelper):
         if isinstance(align_to, str):
             align_to = self.refpoints[align_to]
 
-        cell_inst, refpoints_abs = insert_cell_into(self.cell, cell, trans, inst_name, label_trans, align_to, align,
-                                                    rec_levels, **parameters)
+        cell_inst, refpoints_abs = insert_cell_into(
+            self.cell, cell, trans, inst_name, label_trans, align_to, align, rec_levels, **parameters
+        )
 
         if inst_name is not None:
             # copies probing refpoints to chip level with unique names using subcell id property
@@ -281,12 +310,6 @@ class Element(pya.PCellDeclarationHelper):
                 new_name = "{}_{}".format(inst_name, ref_name)
                 self.refpoints[new_name] = pos
         return cell_inst, refpoints_abs
-
-    def _resolve_face(self, face_id):
-        """Returns face_id if the parameter is given as string or self.face_ids[face_id] otherwise.
-        The face_id as a string must be a key in default_faces but does not necessarily need to be in self.face_ids.
-        """
-        return face_id if isinstance(face_id, str) else self.face_ids[face_id]
 
     def face(self, face_id=0):
         """Returns the face dictionary corresponding to face_id.
@@ -296,7 +319,7 @@ class Element(pya.PCellDeclarationHelper):
         Args:
             face_id: name or index of the face, default=0
         """
-        return default_faces[self._resolve_face(face_id)]
+        return default_faces[resolve_face(face_id, self.face_ids)]
 
     def pcell_params_by_name(self, cls=None, **parameters):
         """Give PCell parameters as a dictionary.
@@ -325,7 +348,7 @@ class Element(pya.PCellDeclarationHelper):
         return {**p, **parameters}
 
     def add_port(self, name, pos, direction=None, face_id=0):
-        """ Add a port location to the list of reference points as well as ports layer for netlist extraction
+        """Add a port location to the list of reference points as well as ports layer for netlist extraction
 
         Args:
             name: name for the port. Will be "decorated" for annotation layer, left as is for port layer. If evaluates
@@ -339,13 +362,13 @@ class Element(pya.PCellDeclarationHelper):
         text = pya.DText(name, pos.x, pos.y)
         self.cell.shapes(self.get_layer("ports", face_id)).insert(text)
 
-        port_name = name if "port" in name else ("port_"+name if name else "port")
+        port_name = name if "port" in name else ("port_" + name if name else "port")
         self.refpoints[port_name] = pos
         if direction:
-            self.refpoints[port_name+"_corner"] = pos+direction/direction.length()*self.r
+            self.refpoints[port_name + "_corner"] = pos + direction / direction.length() * self.r
 
     def copy_port(self, name, cell_inst, new_name=None):
-        """ Copy a port definition from a different cell and instance; typically used to expose a specific subcell port.
+        """Copy a port definition from a different cell and instance; typically used to expose a specific subcell port.
 
         Args:
             name: Name of the port as it was specified to ``add_port``
@@ -366,8 +389,12 @@ class Element(pya.PCellDeclarationHelper):
             if "ports" in self.face(i):
                 if name in get_refpoints(self.get_layer("ports", i), cell, cell_inst.dcplx_trans):
                     if port_corner_name in cell_refpoints:
-                        self.add_port(copy_name, cell_refpoints[port_name],
-                                      cell_refpoints[port_corner_name] - cell_refpoints[port_name], i)
+                        self.add_port(
+                            copy_name,
+                            cell_refpoints[port_name],
+                            cell_refpoints[port_corner_name] - cell_refpoints[port_name],
+                            i,
+                        )
                     else:
                         self.add_port(copy_name, cell_refpoints[port_name], face_id=i)
                     break
@@ -382,7 +409,7 @@ class Element(pya.PCellDeclarationHelper):
         """
         schema = {}
         for pc in cls.__mro__:
-            if not hasattr(pc, 'LIBRARY_NAME'):
+            if not hasattr(pc, "LIBRARY_NAME"):
                 break
             schema = {**Param.get_all(pc), **schema}
             if noparents or abstract_class == pc:  # not interested in more parent classes
@@ -407,11 +434,26 @@ class Element(pya.PCellDeclarationHelper):
             text = pya.DText(name, refpoint.x, refpoint.y)
             self.cell.shapes(self.get_layer("refpoints")).insert(text)
 
+    def _etch_opposite_face(self):
+        """Add opposite face etching, if enabled."""
+        if self.etch_opposite_face:
+            etch_shape = pya.Region(self.cell.begin_shapes_rec(self.get_layer("ground_grid_avoidance"))).merged()
+            etch_shape.size((self.etch_opposite_face_margin - self.margin) / self.layout.dbu)
+            protection = etch_shape.sized(self.margin / self.layout.dbu)
+            face = self.face_ids[0]
+            for group in self.opposing_face_id_groups:
+                if face in group:
+                    for other_face in group:
+                        if other_face != face:
+                            self.cell.shapes(self.get_layer("base_metal_gap_wo_grid", other_face)).insert(etch_shape)
+                            self.cell.shapes(self.get_layer("ground_grid_avoidance", other_face)).insert(protection)
+
     def build(self):
         """Child classes re-define this method to build the PCell."""
 
     def post_build(self):
-        """Child classes re-define this method for post-build operations"""
+        """Child classes may re-define this method for post-build operations."""
+        self._etch_opposite_face()
 
     def display_text_impl(self):
         if self.display_name:
@@ -464,8 +506,18 @@ class Element(pya.PCellDeclarationHelper):
             abstract = prev.__bases__[0]
         return prev
 
-    def _add_parameter(self, name, value_type, description,
-                       default=None, unit=None, hidden=False, readonly=False, choices=None, docstring=None):
+    def _add_parameter(
+        self,
+        name,
+        value_type,
+        description,
+        default=None,
+        unit=None,
+        hidden=False,
+        readonly=False,
+        choices=None,
+        docstring=None,
+    ):
         """Creates a `pya.PCellParameterDeclaration` object and appends it to `self._param_decls`
 
         The arguments to this function define the PCellParameterDeclaration attributes with the same names,
@@ -483,8 +535,9 @@ class Element(pya.PCellDeclarationHelper):
 
         # special handling of layer parameters
         if value_type == pya.PCellParameterDeclaration.TypeLayer:
-            setattr(type(self), name + "_layer",
-                    pya._PCellDeclarationHelperLayerDescriptor(len(self._layer_param_index)))
+            setattr(
+                type(self), name + "_layer", pya._PCellDeclarationHelperLayerDescriptor(len(self._layer_param_index))
+            )
             self._layer_param_index.append(len(self._param_decls))
 
         # create the PCellParameterDeclaration and add to self._param_decls
@@ -495,7 +548,7 @@ class Element(pya.PCellDeclarationHelper):
             if not isinstance(choices, list) and not isinstance(choices, tuple):
                 raise ValueError("choices must be a list or tuple.")
             for choice in choices:
-                if  isinstance(choice, str):  # description-is-value shorthand
+                if isinstance(choice, str):  # description-is-value shorthand
                     choice = (choice, choice)
                 if len(choice) != 2:
                     raise ValueError("Each item in choices list/tuple must be a two-element array [description, value]")
@@ -510,23 +563,23 @@ class Element(pya.PCellDeclarationHelper):
              position: location of the text center (optional)
         """
         self.cell.clear()
-        error_text_cell = self.layout.create_cell("TEXT", "Basic", {
-            "layer": default_layers["annotations"],
-            "text": error_msg,
-            "mag": 10.0
-        })
+        error_text_cell = self.layout.create_cell(
+            "TEXT", "Basic", {"layer": default_layers["annotations"], "text": error_msg, "mag": 10.0}
+        )
         text_center = error_text_cell.bbox().center().to_dtype(self.layout.dbu)
         self.insert_cell(error_text_cell, pya.DTrans(position - text_center))
         raise ValueError(error_msg)
 
     def add_protection(self, shape, face_id=0):
-        """Add ground grid protection shape
+        """Add ground grid avoidance shape on given face (and on opposing face if self.protect_opposite_face is True).
+        Use this function to protect signal carrying elements that typically include some metal between gaps.
+        Do not use this function with pure flip-chip connectors, TSVs, or airbridges that doesn't include metal gaps.
 
         Args:
              shape: The shape (Region, DPolygon, etc.) to add to ground_grid_avoidance layer
              face_id: Name or index of the primary face of ground_grid_avoidance layer, default=0
         """
-        face = self._resolve_face(face_id)
+        face = resolve_face(face_id, self.face_ids)
         self.cell.shapes(self.get_layer("ground_grid_avoidance", face)).insert(shape)
         if self.protect_opposite_face:
             for group in self.opposing_face_id_groups:
@@ -570,7 +623,7 @@ class Element(pya.PCellDeclarationHelper):
 
         if subtype == "none":
             return
-        if  json_str == "{}" or params[f"{module}_type"] != subtype:  # initialise defaults
+        if json_str == "{}" or params[f"{module}_type"] != subtype:  # initialise defaults
             if f"{module}_type" in params and json_str != saved and saved != {}:
                 subtype = params[f"{module}_type"]
                 setattr(self, f"{module}_type", subtype)
@@ -594,7 +647,7 @@ class Element(pya.PCellDeclarationHelper):
         setattr(self, f"_{pname}", json_str)
 
     @classmethod
-    def get_sim_ports(cls, simulation): # pylint: disable=unused-argument
+    def get_sim_ports(cls, simulation):  # pylint: disable=unused-argument
         """List of RefpointToSimPort objects defining which refpoints
         should be turned to simulation ports for the given element class
 
@@ -623,8 +676,10 @@ class Element(pya.PCellDeclarationHelper):
         """
         a2 = simulation.a if simulation.a2 < 0 else simulation.a2
         b2 = simulation.b if simulation.b2 < 0 else simulation.b2
-        return [WaveguideToSimPort("port_a", side='left', a=simulation.a, b=simulation.b),
-                WaveguideToSimPort("port_b", side='right', a=a2, b=b2)]
+        return [
+            WaveguideToSimPort("port_a", side="left", a=simulation.a, b=simulation.b),
+            WaveguideToSimPort("port_b", side="right", a=a2, b=b2),
+        ]
 
     @staticmethod
     def face_changer_waveguides(simulation):
@@ -633,11 +688,16 @@ class Element(pya.PCellDeclarationHelper):
         The first port points to left and the second port orientation is determined by output_rotation parameter.
         The a and b values of the second waveguide are adjusted by a2 and b2 parameters.
         """
+
         def diff_to_rotation(x):
             return abs(x - (simulation.output_rotation % 360))
-        side = {0: 'left', 90: 'bottom', 180: 'right', 270: 'top', 360: 'left'}\
-            .get(min([0, 90, 180, 270, 360], key=diff_to_rotation))
+
+        side = {0: "left", 90: "bottom", 180: "right", 270: "top", 360: "left"}.get(
+            min([0, 90, 180, 270, 360], key=diff_to_rotation)
+        )
         a2 = simulation.a if simulation.a2 < 0 else simulation.a2
         b2 = simulation.b if simulation.b2 < 0 else simulation.b2
-        return [WaveguideToSimPort(f"{simulation.face_ids[0]}_port", side="left"),
-                WaveguideToSimPort(f"{simulation.face_ids[1]}_port", side=side, face=1, a=a2, b=b2)]
+        return [
+            WaveguideToSimPort(f"{simulation.face_ids[0]}_port", side="left"),
+            WaveguideToSimPort(f"{simulation.face_ids[1]}_port", side=side, face=1, a=a2, b=b2),
+        ]

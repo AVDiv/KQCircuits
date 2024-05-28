@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import logging
@@ -26,6 +27,7 @@ from kqcircuits.elements.element import Element
 log = logging.getLogger(__name__)
 
 # define test classes
+
 
 class A(Element):
     pa1 = Param(pdt.TypeInt, "", 1)
@@ -49,6 +51,7 @@ class D(C):
 
 # normal cases
 
+
 def test_param_basics():
     a = A()
     assert a.pa1 == 1 and a.pa2 == 10
@@ -60,8 +63,8 @@ def test_param_basics():
 
 def test_param_choices():
     class Test(Element):
-        cp1 = Param(pdt.TypeInt, "", "One", choices=['One', "Two"])
-        cp2 = Param(pdt.TypeInt, "", 2, choices=[['One', 1], ["Two", 2]])
+        cp1 = Param(pdt.TypeInt, "", "One", choices=["One", "Two"])
+        cp2 = Param(pdt.TypeInt, "", 2, choices=[["One", 1], ["Two", 2]])
         pass
 
     t = Test()
@@ -139,6 +142,7 @@ def test_add_parameters_from_override_with_same_default():
 
 # test inherited parameters
 
+
 def test_add_parameters_from_everything_inherited():
     @add_parameters_from(D)
     class Test(B):
@@ -154,6 +158,7 @@ def test_add_parameters_from_inheritance_chain():
     @add_parameters_from(C)
     class Source(A):
         pass
+
     @add_parameters_from(Source)
     class Test(Element):
         pass
@@ -167,8 +172,10 @@ def test_add_parameters_from_longer_inheritance_chain():
     @add_parameters_from(C)
     class SourceParent(A):
         pass
+
     class Source(SourceParent):
         pass
+
     @add_parameters_from(Source)
     class Test(Element):
         pass
@@ -181,6 +188,7 @@ def test_add_parameters_from_longer_inheritance_chain():
 
 
 # test wildcard and parameter removal
+
 
 def test_add_parameters_from_get_all_change_one():
     @add_parameters_from(A, "*", pa2=-1)
@@ -205,6 +213,7 @@ def test_add_parameters_from_syntax_sugar():
     @add_parameters_from(B)
     class Test1(Element):
         pass
+
     @add_parameters_from(B, "*")
     class Test2(Element):
         pass
@@ -222,42 +231,51 @@ def test_add_parameters_from_change_overrides_removal():
     t = Test()
     assert t.pa1 == -1 and t.pa2 == 10
 
+
 # test error handling
+
 
 def test_add_parameters_from_detect_bad_param():
     try:
+
         @add_parameters_from(A, "unknown_parameter")
         class Test(Element):
             pass
+
     except ValueError:
         pass
     else:
-       assert False
+        assert False
 
 
 def test_add_parameters_from_detect_bad_param_change():
     try:
+
         @add_parameters_from(A, unknown_parameter=123)
         class Test(Element):
             pass
+
     except ValueError:
         pass
     else:
-       assert False
+        assert False
 
 
 def test_add_parameters_from_detect_bad_param_removal():
     try:
+
         @add_parameters_from(A, "*", "unknown_parameter")
         class Test(Element):
             pass
+
     except ValueError:
         pass
     else:
-       assert False
+        assert False
 
 
 # test add_parameter
+
 
 def test_add_param_unchanged():
     @add_parameter(A, "pa1")
@@ -276,8 +294,8 @@ def test_add_param_hide():
         pass
 
     s = Test.get_schema()
-    assert 'hidden' not in s['pa1'].kwargs
-    assert s['pa2'].kwargs['hidden']
+    assert "hidden" not in s["pa1"].kwargs
+    assert s["pa2"].kwargs["hidden"]
 
 
 def test_add_param_default():
@@ -287,28 +305,29 @@ def test_add_param_default():
 
     t = Test()
     s = Test.get_schema()
-    assert not s['pa1'].kwargs['hidden'] and t.pa1 == 123
+    assert not s["pa1"].kwargs["hidden"] and t.pa1 == 123
     assert A.pa1 == 1
 
 
 def test_add_param_choices_description_and_unit():
-    test_choices = [['One', 1], ["Two", 2]]
+    test_choices = [["One", 1], ["Two", 2]]
 
     @add_parameter(A, "pa1", choices=test_choices, unit="nm", description="FooBar")
     class Test(Element):
         pass
 
     s = Test.get_schema()
-    assert s['pa1'].kwargs['choices']  == test_choices
-    assert s['pa1'].kwargs['unit'] == "nm"
-    assert s['pa1'].description == "FooBar"
+    assert s["pa1"].kwargs["choices"] == test_choices
+    assert s["pa1"].kwargs["unit"] == "nm"
+    assert s["pa1"].description == "FooBar"
 
 
 def test_add_param_inherited():
     @add_parameter(A, "pa1", hidden=True)
     class Parent(Element):
         pass
+
     class Test(Parent):
         pass
 
-    assert  Test.get_schema()['pa1'].kwargs['hidden']
+    assert Test.get_schema()["pa1"].kwargs["hidden"]

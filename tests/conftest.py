@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from kqcircuits.simulations.export.sonnet.sonnet_export import export_sonnet
 
 @pytest.fixture
 def layout():
-    """ Return a new pya Layout """
+    """Return a new pya Layout"""
     return pya.Layout()
 
 
@@ -37,6 +38,7 @@ def get_simulation(layout):
         if issubclass(cls, Simulation):
             return cls(layout, **parameters)
         return get_single_element_sim_class(cls)(layout, **parameters)
+
     return get_sim
 
 

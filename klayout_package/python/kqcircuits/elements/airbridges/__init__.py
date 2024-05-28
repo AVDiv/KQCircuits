@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 """PCell classes for airbridges.
@@ -22,6 +23,6 @@ Both code generated and manually created airbridges are in this module.
 """
 
 airbridge_type_choices = [
-    'Airbridge Rectangular',
-    'Airbridge Multi Face',
+    "Airbridge Rectangular",
+    "Airbridge Multi Face",
 ]

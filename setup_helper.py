@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 import os
 import subprocess
@@ -59,21 +60,24 @@ def setup_symlinks(root_path, configdir, link_map, unlink=False):
         if target is not None:
             link_target = os.path.join(root_path, target)
         else:
-            link_target="Unknown"
+            link_target = "Unknown"
 
         link_name = os.path.join(configdir, name)
         if os.path.lexists(link_name):
             os.unlink(link_name)
             if unlink:
-                print(f"Removed symlink \"{link_name}\" to \"{link_target}\"")
+                print(f'Removed symlink "{link_name}" to "{link_target}"')
         elif unlink:
-            print(f"You set `unlink=True`, but symlink \"{link_name}\" to \"{link_target}\" does not exist... This is doing nothing.")
+            print(
+                f'You set `unlink=True`, but symlink "{link_name}" to "{link_target}" does not exist... This is doing nothing.'
+            )
 
         if not unlink:
             if os.name == "nt":
                 # On Windows, create a Junction to avoid requiring Administrative privileges
-                subprocess.check_call(['cmd', '/c', 'mklink', '/J',
-                                       os.path.normpath(link_name), os.path.normpath(link_target)])
+                subprocess.check_call(
+                    ["cmd", "/c", "mklink", "/J", os.path.normpath(link_name), os.path.normpath(link_target)]
+                )
             else:
                 os.symlink(link_target, link_name, target_is_directory=True)
-            print(f"Created symlink \"{link_name}\" to \"{link_target}\"")
+            print(f'Created symlink "{link_name}" to "{link_target}"')

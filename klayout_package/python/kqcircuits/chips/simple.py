@@ -12,9 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
-
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -26,11 +26,10 @@ from kqcircuits.elements.waveguide_coplanar_splitter import WaveguideCoplanarSpl
 from kqcircuits.elements.finger_capacitor_square import FingerCapacitorSquare
 
 
-
 class Simple(Chip):
     """The PCell declaration for a very simple chip.
 
-       Contains a small number of elements connected in a simple, direct way.
+    Contains a small number of elements connected in a simple, direct way.
     """
 
     name_chip = Param(pdt.TypeString, "Name of the chip", "Simple")
@@ -51,8 +50,9 @@ class Simple(Chip):
 
         # WaveguideCoplanarSplitter
         _pos = pya.DTrans(launchers["SE"][0].x, launchers["WN"][0].y)
-        _, tcross_refs = self.insert_cell(WaveguideCoplanarSplitter, _pos, **t_cross_parameters(
-            a=self.a, b=self.b, a2=self.a, b2=self.b))
+        _, tcross_refs = self.insert_cell(
+            WaveguideCoplanarSplitter, _pos, **t_cross_parameters(a=self.a, b=self.b, a2=self.a, b2=self.b)
+        )
 
         # Waveguides: WN -> Swissmon -> FingerCapacitorSquare -> WaveguideCoplanarSplitter -> EN
         self.insert_cell(WaveguideCoplanar, path=pya.DPath([launchers["WN"][0], swissmon_refs["port_flux"]], 1))

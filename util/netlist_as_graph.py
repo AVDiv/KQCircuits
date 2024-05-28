@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import json
@@ -28,4 +29,4 @@ with open(str(sys.argv[1]), "r") as fp:
     network = json.load(fp)
 
 graph = network_as_graph(network)
-draw_graph(graph, with_labels=True, with_position=(sys.argv[2] == '1') if (len(sys.argv) >= 3) else True)
+draw_graph(graph, with_labels=True, with_position=(sys.argv[2] == "1") if (len(sys.argv) >= 3) else True)

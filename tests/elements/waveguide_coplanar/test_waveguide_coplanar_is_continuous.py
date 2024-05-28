@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -46,7 +47,7 @@ def test_straight_not_continuous():
     layout = pya.Layout()
     cell = layout.create_cell("top")
     points1 = [pya.DPoint(0, 0), pya.DPoint(100, 0)]
-    points2 = [pya.DPoint(100 + 2*tolerance, 0), pya.DPoint(200, 0)]
+    points2 = [pya.DPoint(100 + 2 * tolerance, 0), pya.DPoint(200, 0)]
     shape1 = pya.DPath(points1, 1)
     shape2 = pya.DPath(points2, 1)
     annotation_layer = layout.layer(default_layers["1t1_waveguide_path"])
@@ -76,7 +77,7 @@ def test_corner_not_continuous():
     layout = pya.Layout()
     cell = layout.create_cell("top")
     points1 = [pya.DPoint(0, 0), pya.DPoint(0, 50)]
-    points2 = [pya.DPoint(0, 50 + 2*tolerance), pya.DPoint(50, 50)]
+    points2 = [pya.DPoint(0, 50 + 2 * tolerance), pya.DPoint(50, 50)]
     shape1 = pya.DPath(points1, 1)
     shape2 = pya.DPath(points2, 1)
     annotation_layer = layout.layer(default_layers["1t1_waveguide_path"])

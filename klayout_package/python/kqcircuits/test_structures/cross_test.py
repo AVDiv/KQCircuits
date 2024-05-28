@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -39,14 +40,20 @@ class CrossTest(TestStructure):
 
         layer_base_metal = self.get_layer("base_metal_gap_wo_grid")
 
-        box = pya.DBox(pya.DPoint(-self.cross_width/2, -self.cross_box_distance), pya.DPoint(self.cross_width/2,
-                                                                    -self.cross_box_distance - self.cross_width))
-        vertical_tick = pya.DBox(pya.DPoint(-self.cross_width/2, 0), pya.DPoint(self.cross_width/2, self.cross_length))
-        horizontal_tick = pya.DBox(pya.DPoint(-self.cross_length/2, self.cross_length/2 - self.cross_width/2),
-                                   pya.DPoint(self.cross_length/2, self.cross_length/2 + self.cross_width/2))
+        box = pya.DBox(
+            pya.DPoint(-self.cross_width / 2, -self.cross_box_distance),
+            pya.DPoint(self.cross_width / 2, -self.cross_box_distance - self.cross_width),
+        )
+        vertical_tick = pya.DBox(
+            pya.DPoint(-self.cross_width / 2, 0), pya.DPoint(self.cross_width / 2, self.cross_length)
+        )
+        horizontal_tick = pya.DBox(
+            pya.DPoint(-self.cross_length / 2, self.cross_length / 2 - self.cross_width / 2),
+            pya.DPoint(self.cross_length / 2, self.cross_length / 2 + self.cross_width / 2),
+        )
 
         for i in range(self.num_crosses):
-            trans = pya.DTrans(0, False, i*self.cross_spacing, 0).to_itype(self.layout.dbu)
+            trans = pya.DTrans(0, False, i * self.cross_spacing, 0).to_itype(self.layout.dbu)
             box_trans = pya.Region(trans * box.to_itype(self.layout.dbu))
             vertical_tick_trans = pya.Region(trans * vertical_tick.to_itype(self.layout.dbu))
             horizontal_tick_trans = pya.Region(trans * horizontal_tick.to_itype(self.layout.dbu))

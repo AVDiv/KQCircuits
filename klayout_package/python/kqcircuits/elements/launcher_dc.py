@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.elements.element import Element
@@ -33,16 +34,16 @@ class LauncherDC(Element):
 
         extra_width = 100
 
-        offset = self.width/2
+        offset = self.width / 2
         metal_region = pya.Region((pya.DBox(-offset, -offset, offset, offset)).to_itype(self.layout.dbu))
 
-        offset = (self.width + extra_width)/2
+        offset = (self.width + extra_width) / 2
         gap_region = pya.Region((pya.DBox(-offset, -offset, offset, offset)).to_itype(self.layout.dbu))
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(gap_region - metal_region)
 
-        offset = (self.width + extra_width)/2 + self.margin
+        offset = (self.width + extra_width) / 2 + self.margin
         shape = pya.Region((pya.DBox(-offset, -offset, offset, offset)).to_itype(self.layout.dbu))
-        self.cell.shapes(self.get_layer("ground_grid_avoidance")).insert(shape)
+        self.add_protection(shape)
 
         # add reference point
         self.add_port("", pya.DPoint(0, 0))

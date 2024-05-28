@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import math
@@ -33,23 +34,39 @@ class ChipFrame(Element):
      .. MARKERS_FOR_PNG 0,5000,10000,5000 5000,0,5000,10000
     """
 
-    box = Param(pdt.TypeShape, "Border", pya.DBox(pya.DPoint(0, 0), pya.DPoint(10000, 10000)),
-                docstring="Bounding box of the chip frame")
+    box = Param(
+        pdt.TypeShape,
+        "Border",
+        pya.DBox(pya.DPoint(0, 0), pya.DPoint(10000, 10000)),
+        docstring="Bounding box of the chip frame",
+    )
     dice_width = Param(pdt.TypeDouble, "Dicing width", 200, unit="μm")
-    dice_grid_margin = Param(pdt.TypeDouble, "Margin between dicing edge and ground grid", 100,
-                             docstring="Margin of the ground grid avoidance layer for dicing edge")
-    name_mask = Param(pdt.TypeString, "Name of the mask", "M000")
+    dice_grid_margin = Param(
+        pdt.TypeDouble,
+        "Margin between dicing edge and ground grid",
+        100,
+        docstring="Margin of the ground grid avoidance layer for dicing edge",
+    )
+    name_mask = Param(pdt.TypeString, "Name of the mask", "M000")  # string '_3' will leave empty space for M000
     name_chip = Param(pdt.TypeString, "Name of the chip", "CTest")
     name_copy = Param(pdt.TypeString, "Name of the copy", None)
     name_brand = Param(pdt.TypeString, "Name of the brand", default_brand)
-    text_margin = Param(pdt.TypeDouble, "Margin for labels", 100,
-                        docstring="Margin of the ground grid avoidance layer around the text")
-    marker_dist = Param(pdt.TypeDouble, "Marker distance from edges", 1500,
-                        docstring="Distance of markers from closest edges of the chip face")
+    text_margin = Param(
+        pdt.TypeDouble, "Margin for labels", 100, docstring="Margin of the ground grid avoidance layer around the text"
+    )
+    marker_dist = Param(
+        pdt.TypeDouble,
+        "Marker distance from edges",
+        1500,
+        docstring="Distance of markers from closest edges of the chip face",
+    )
     diagonal_squares = Param(pdt.TypeInt, "Number of diagonal squares for the markers", 10)
     use_face_prefix = Param(pdt.TypeBoolean, "Use face prefix for chip name label", False)
-    marker_types = Param(pdt.TypeList, "Marker type for each chip corner, clockwise starting from lower left",
-                         default=[default_marker_type] * 4)
+    marker_types = Param(
+        pdt.TypeList,
+        "Marker type for each chip corner, clockwise starting from lower left",
+        default=[default_marker_type] * 4,
+    )
     chip_dicing_width = Param(pdt.TypeDouble, "Width of the chip dicing reference line", 10.0, unit="µm")
     chip_dicing_line_length = Param(pdt.TypeDouble, "Length of the chip dicing reference line", 100.0, unit="µm")
     chip_dicing_gap_length = Param(pdt.TypeDouble, "Gap between two chip dicing reference dashes", 50.0, unit="µm")
@@ -65,15 +82,16 @@ class ChipFrame(Element):
         x_min, x_max, y_min, y_max = self._box_points()
         if self.use_face_prefix:
             face_id = self.face()["id"]
-            face_prefix = default_chip_label_face_prefixes[face_id].upper() \
-                if default_chip_label_face_prefixes and (face_id in default_chip_label_face_prefixes) \
+            face_prefix = (
+                default_chip_label_face_prefixes[face_id].upper()
+                if default_chip_label_face_prefixes and (face_id in default_chip_label_face_prefixes)
                 else face_id.upper()
+            )
             chip_name = face_prefix + self.name_chip
         else:
             chip_name = self.name_chip
         labels = [self.name_mask, chip_name, self.name_copy, self.name_brand]
-        if self.name_mask:
-            self._produce_label(labels[0], pya.DPoint(x_min, y_max), LabelOrigin.TOPLEFT)
+        self._produce_label(labels[0], pya.DPoint(x_min, y_max), LabelOrigin.TOPLEFT)
         if self.name_chip:
             self._produce_label(labels[1], pya.DPoint(x_max, y_max), LabelOrigin.TOPRIGHT)
         self._produce_label(labels[2], pya.DPoint(x_max, y_min), LabelOrigin.BOTTOMRIGHT)
@@ -94,23 +112,43 @@ class ChipFrame(Element):
             label PCells added to the layout into the parent PCell
         """
         size = 350 * min(1, self.box.width() / 7000, self.box.height() / 7000)
-        produce_label(self.cell, label, location, origin, self.dice_width, self.text_margin,
-                      [self.face()["base_metal_gap_wo_grid"], self.face()["base_metal_gap_for_EBL"]],
-                      self.face()["ground_grid_avoidance"], size)
+        produce_label(
+            self.cell,
+            label,
+            location,
+            origin,
+            self.dice_width,
+            self.text_margin,
+            [self.face()["base_metal_gap_wo_grid"], self.face()["base_metal_gap_for_EBL"]],
+            self.face()["ground_grid_avoidance"],
+            size,
+        )
 
     def _produce_markers(self):
         x_min, x_max, y_min, y_max = self._box_points()
         if len(self.marker_types) == 4:
-            self._produce_marker(self.marker_types[0], pya.DTrans(x_min + self.marker_dist, y_min + self.marker_dist) \
-                                 * pya.DTrans.R180, self.face()["id"] + "_marker_sw")
-            self._produce_marker(self.marker_types[3], pya.DTrans(x_max - self.marker_dist, y_min + self.marker_dist) \
-                                 * pya.DTrans.R270, self.face()["id"] + "_marker_se")
-            self._produce_marker(self.marker_types[1], pya.DTrans(x_min + self.marker_dist, y_max - self.marker_dist) \
-                                 * pya.DTrans.R90, self.face()["id"] + "_marker_nw")
-            self._produce_marker(self.marker_types[2], pya.DTrans(x_max - self.marker_dist, y_max - self.marker_dist) \
-                                 * pya.DTrans.R0, self.face()["id"] + "_marker_ne")
+            self._produce_marker(
+                self.marker_types[0],
+                pya.DTrans(x_min + self.marker_dist, y_min + self.marker_dist) * pya.DTrans.R180,
+                self.face()["id"] + "_marker_sw",
+            )
+            self._produce_marker(
+                self.marker_types[3],
+                pya.DTrans(x_max - self.marker_dist, y_min + self.marker_dist) * pya.DTrans.R270,
+                self.face()["id"] + "_marker_se",
+            )
+            self._produce_marker(
+                self.marker_types[1],
+                pya.DTrans(x_min + self.marker_dist, y_max - self.marker_dist) * pya.DTrans.R90,
+                self.face()["id"] + "_marker_nw",
+            )
+            self._produce_marker(
+                self.marker_types[2],
+                pya.DTrans(x_max - self.marker_dist, y_max - self.marker_dist) * pya.DTrans.R0,
+                self.face()["id"] + "_marker_ne",
+            )
         else:
-            print('Warning: chip frame markers need to be for all four corners')
+            print("Warning: chip frame markers need to be for all four corners")
 
     def _produce_marker(self, marker_type, trans, name):
         if not marker_type:
@@ -156,7 +194,6 @@ class ChipFrame(Element):
             pya.DPoint(x_max + extension, y_max + extension),
             pya.DPoint(x_min - extension, y_max + extension),
             pya.DPoint(x_min - extension, y_min - extension),
-
             pya.DPoint(x_min + w, y_min + w),
             pya.DPoint(x_min + w, y_max - w),
             pya.DPoint(x_max - w, y_max - w),

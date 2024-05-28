@@ -12,17 +12,12 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
-
-import sys
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from kqcircuits.util.dependencies import install_kqc_dependencies
 
-# pylint: disable=undefined-variable
-from ._version import __version__
-if hasattr(sys.modules[__name__], "_version"):
-    del _version  # remove to avoid confusion with __version__
 
 # Check for needed dependencies and install if missing.
 install_kqc_dependencies()

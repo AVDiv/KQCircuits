@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -49,11 +50,15 @@ class StripesTestIncreasingWidth(TestStructure):
             width += float(self.stripe_step)
 
         spacing_str = int(self.stripe_spacing)
-        text_cell = self.layout.create_cell("TEXT", "Basic", {
-            "layer": self.face()["base_metal_gap_wo_grid"],
-            "text": "{}".format(spacing_str),
-            "mag": 40,
-        })
+        text_cell = self.layout.create_cell(
+            "TEXT",
+            "Basic",
+            {
+                "layer": self.face()["base_metal_gap_wo_grid"],
+                "text": "{}".format(spacing_str),
+                "mag": 40,
+            },
+        )
         text_x = float(loc + self.min_stripe_width)
         text_y = self.stripe_length / 2
         self.insert_cell(text_cell, pya.DTrans(text_x, text_y))

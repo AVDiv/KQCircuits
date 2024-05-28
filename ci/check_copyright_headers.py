@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 """Checks all files for existence of IQM copyright header.
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--exclude-paths", nargs="*", type=str, default=[])
     args = parser.parse_args()
-    exclude_paths = [cwd/p for p in args.exclude_paths]
+    exclude_paths = [cwd / p for p in args.exclude_paths]
 
     print("Checking the existence of copyright header in all .py and .lym files...")
 
@@ -63,10 +64,11 @@ if __name__ == "__main__":
         copyright_template = Template(template_file.read())
 
     files_without_copyright = file_paths_2
-    for copyright_year in [2021, 2022, 2023]:
+    for copyright_year in [2021, 2022, 2023, 2024]:
         copyright_string = copyright_template.substitute(year=copyright_year)
-        files_without_copyright = [file for file in files_without_copyright
-                                   if copyright_string not in open(file, encoding="utf-8").read()]
+        files_without_copyright = [
+            file for file in files_without_copyright if copyright_string not in open(file, encoding="utf-8").read()
+        ]
 
     if len(files_without_copyright) > 0:
         print("Files without copyright header:")

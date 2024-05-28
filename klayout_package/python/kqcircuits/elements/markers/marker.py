@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.pya_resolver import pya
@@ -52,23 +53,22 @@ class Marker(Element):
                 self.cell.shapes(layer_flyover).insert(shape)
 
         # protection for the box
-        protection_box = pya.DBox(
-            pya.DPoint(220, 220),
-            pya.DPoint(-220, -220)
-        )
+        protection_box = pya.DBox(pya.DPoint(220, 220), pya.DPoint(-220, -220))
         self.cell.shapes(layer_protection).insert(protection_box)
 
         # make corners
-        corner = pya.DPolygon([
-            pya.DPoint(100, 100),
-            pya.DPoint(10, 100),
-            pya.DPoint(10, 80),
-            pya.DPoint(80, 80),
-            pya.DPoint(80, 10),
-            pya.DPoint(100, 10),
-        ])
+        corner = pya.DPolygon(
+            [
+                pya.DPoint(100, 100),
+                pya.DPoint(10, 100),
+                pya.DPoint(10, 80),
+                pya.DPoint(80, 80),
+                pya.DPoint(80, 10),
+                pya.DPoint(100, 10),
+            ]
+        )
         inner_corners = [pya.DTrans(a) * corner for a in [0, 1, 2, 3]]
-        outer_corners = [pya.DCplxTrans(2, a * 90., False, pya.DVector()) * corner for a in [0, 1, 2, 3]]
+        outer_corners = [pya.DCplxTrans(2, a * 90.0, False, pya.DVector()) * corner for a in [0, 1, 2, 3]]
         corners = pya.Region([s.to_itype(self.layout.dbu) for s in inner_corners + outer_corners])
         insert_to_main_layers(corners)
 
@@ -84,16 +84,18 @@ class Marker(Element):
         self.cell.shapes(layer_pads).insert(self.inv_corners - pya.Region(sqr_uni.to_itype(self.layout.dbu)))
 
         # window for airbridge flyover layer
-        aflw = pya.DPolygon([
-            pya.DPoint(800, 800),
-            pya.DPoint(800, 10),
-            pya.DPoint(80, 10),
-            pya.DPoint(80, 2),
-            pya.DPoint(2, 2),
-            pya.DPoint(2, 80),
-            pya.DPoint(10, 80),
-            pya.DPoint(10, 800)
-        ])
+        aflw = pya.DPolygon(
+            [
+                pya.DPoint(800, 800),
+                pya.DPoint(800, 10),
+                pya.DPoint(80, 10),
+                pya.DPoint(80, 2),
+                pya.DPoint(2, 2),
+                pya.DPoint(2, 80),
+                pya.DPoint(10, 80),
+                pya.DPoint(10, 800),
+            ]
+        )
         if self.window:
             for alpha in [0, 1, 2, 3]:
                 self.cell.shapes(layer_flyover).insert(pya.DTrans(alpha) * aflw)
@@ -110,7 +112,8 @@ class Marker(Element):
             self.cell.shapes(layer_pads).insert(ds)
             self.diagonals += ds.to_itype(self.layout.dbu)
             self.cell.shapes(layer_protection).insert(
-                pya.DCplxTrans(20, 0, False, pya.DVector(50 * i - 20 * 6, 50 * i - 20 * 6)) * sqr)
+                pya.DCplxTrans(20, 0, False, pya.DVector(50 * i - 20 * 6, 50 * i - 20 * 6)) * sqr
+            )
 
     @classmethod
     def get_marker_locations(cls, cell_marker, **kwargs):
@@ -128,24 +131,24 @@ class Marker(Element):
             A list of placement encoded as DTrans objects that will
             transform the marker cells at their preferred location
         """
-        wafer_center_x = kwargs.get('wafer_center_x', 0)
-        wafer_center_y = kwargs.get('wafer_center_y', 0)
-        wafer_rad = kwargs.get('wafer_rad', 75000)
-        edge_clearance = kwargs.get('edge_clearance', 1000)
-        margin = kwargs.get('box_margin', 1000)
+        wafer_center_x = kwargs.get("wafer_center_x", 0)
+        wafer_center_y = kwargs.get("wafer_center_y", 0)
+        wafer_rad = kwargs.get("wafer_rad", 75000)
+        edge_clearance = kwargs.get("edge_clearance", 1000)
+        margin = kwargs.get("box_margin", 1000)
         _h = cell_marker.dbbox().height()
         _w = cell_marker.dbbox().width()
         coordinate = (wafer_rad - edge_clearance) / np.sqrt(2)
         return [
-                pya.DTrans(wafer_center_x - (coordinate - _w/2 - margin), wafer_center_y - (coordinate - _h/2 - margin))
-                * pya.DTrans.R180,
-                pya.DTrans(wafer_center_x + (coordinate - _w/2 - margin), wafer_center_y - (coordinate - _h/2 - margin))
-                * pya.DTrans.R270,
-                pya.DTrans(wafer_center_x - (coordinate - _w/2 - margin), wafer_center_y + (coordinate - _h/2 - margin))
-                * pya.DTrans.R90,
-                pya.DTrans(wafer_center_x + (coordinate - _w/2 - margin), wafer_center_y + (coordinate - _h/2 - margin))
-                * pya.DTrans.R0,
-                ]
+            pya.DTrans(wafer_center_x - (coordinate - _w / 2 - margin), wafer_center_y - (coordinate - _h / 2 - margin))
+            * pya.DTrans.R180,
+            pya.DTrans(wafer_center_x + (coordinate - _w / 2 - margin), wafer_center_y - (coordinate - _h / 2 - margin))
+            * pya.DTrans.R270,
+            pya.DTrans(wafer_center_x - (coordinate - _w / 2 - margin), wafer_center_y + (coordinate - _h / 2 - margin))
+            * pya.DTrans.R90,
+            pya.DTrans(wafer_center_x + (coordinate - _w / 2 - margin), wafer_center_y + (coordinate - _h / 2 - margin))
+            * pya.DTrans.R0,
+        ]
 
     @classmethod
     def get_marker_region(cls, inst, **kwargs):
@@ -161,5 +164,5 @@ class Marker(Element):
         Returns:
             pya.Region that can be used to subtract from the ground plane
         """
-        margin = kwargs.get('box_margin', 1000)
+        margin = kwargs.get("box_margin", 1000)
         return pya.Region(inst.bbox()).extents(margin / inst.cell.layout().dbu)

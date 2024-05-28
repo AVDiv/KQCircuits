@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 """This is a fast Demo mask."""
 
@@ -24,43 +25,46 @@ from kqcircuits.masks.mask_set import MaskSet
 
 qdemo = MaskSet(name="Quick", version=1, with_grid=False)
 
-layers_to_mask = {
-    "base_metal_gap": "1",
-    "underbump_metallization": "2",
-    "indium_bump": "3"
-}
+layers_to_mask = {"base_metal_gap": "1", "underbump_metallization": "2", "indium_bump": "3"}
 
 # b-face mask
-qdemo.add_mask_layout([
-    ["---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---"],
-    ["---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---"],
-    ["---", "---", "---", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "---", "---", "---"],
-    ["---", "---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---", "---"],
-    ["---", "---", "DE1", "---", "CH1", "CH1", "---", "---", "---", "CH1", "CH1", "---", "DE1", "---", "---"],
-    ["---", "DE1", "---", "---", "CH1", "CH1", "---", "---", "---", "CH1", "CH1", "---", "---", "DE1", "---"],
-    ["---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---"],
-    ["---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---"],
-    ["---", "DE1", "---", "CH1", "---", "---", "---", "---", "---", "---", "---", "CH1", "---", "DE1", "---"],
-    ["---", "DE1", "---", "---", "CH1", "---", "---", "---", "---", "---", "CH1", "---", "---", "DE1", "---"],
-    ["---", "---", "DE1", "---", "---", "CH1", "CH1", "CH1", "CH1", "CH1", "---", "---", "DE1", "---", "---"],
-    ["---", "---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---", "---"],
-    ["---", "---", "---", "DE1", "DE1", "---", "---", "---", "---", "---", "DE1", "DE1", "---", "---", "---"],
-    ["---", "---", "---", "---", "---", "DE1", "DE1", "DE1", "DE1", "DE1", "---", "---", "---", "---", "---"],
-    ["---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---"],
-], "1t1", layers_to_mask=layers_to_mask)
+qdemo.add_mask_layout(
+    [
+        ["---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---"],
+        ["---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---"],
+        ["---", "---", "---", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "DE1", "---", "---", "---"],
+        ["---", "---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---", "---"],
+        ["---", "---", "DE1", "---", "CH1", "CH1", "---", "---", "---", "CH1", "CH1", "---", "DE1", "---", "---"],
+        ["---", "DE1", "---", "---", "CH1", "CH1", "---", "---", "---", "CH1", "CH1", "---", "---", "DE1", "---"],
+        ["---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---"],
+        ["---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---"],
+        ["---", "DE1", "---", "CH1", "---", "---", "---", "---", "---", "---", "---", "CH1", "---", "DE1", "---"],
+        ["---", "DE1", "---", "---", "CH1", "---", "---", "---", "---", "---", "CH1", "---", "---", "DE1", "---"],
+        ["---", "---", "DE1", "---", "---", "CH1", "CH1", "CH1", "CH1", "CH1", "---", "---", "DE1", "---", "---"],
+        ["---", "---", "DE1", "---", "---", "---", "---", "---", "---", "---", "---", "---", "DE1", "---", "---"],
+        ["---", "---", "---", "DE1", "DE1", "---", "---", "---", "---", "---", "DE1", "DE1", "---", "---", "---"],
+        ["---", "---", "---", "---", "---", "DE1", "DE1", "DE1", "DE1", "DE1", "---", "---", "---", "---", "---"],
+        ["---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---", "---"],
+    ],
+    "1t1",
+    layers_to_mask=layers_to_mask,
+)
 
 # This is just a demonstration how to generate netlists with something else than 'default_netlist_breakdown'.
 alt_nets = {"2nd": ["Meander"], "3rd": []}
 
 # chip definitions
-qdemo.add_chip([
-    (Chip, "CH1"),
-    (Demo, "DE1", {"alt_netlists": alt_nets}),
-], cpus=2)
+qdemo.add_chip(
+    [
+        (Chip, "CH1"),
+        (Demo, "DE1", {"alt_netlists": alt_nets}),
+    ],
+    cpus=2,
+)
 
 # Alternatively, to add them one-by-one:
-#qdemo.add_chip(Chip, "CH1")
-#qdemo.add_chip(Demo, "DE1")
+# qdemo.add_chip(Chip, "CH1")
+# qdemo.add_chip(Demo, "DE1")
 
 qdemo.build()
 qdemo.export()

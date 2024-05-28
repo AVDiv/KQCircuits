@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from sys import float_info
 import textwrap
@@ -27,10 +28,16 @@ from kqcircuits.util.parameters import pdt
 from kqcircuits.pya_resolver import pya
 
 
-def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_instance_names=True, refpoint_snap=50.0,
-                          grid_snap=1.0, output_format="insert_cell+chip", include_imports=True,
-                          use_create_with_refpoints=True, create_code=True):
-
+def convert_cells_to_code(
+    top_cell,
+    print_waveguides_as_composite=False,
+    add_instance_names=True,
+    refpoint_snap=50.0,
+    grid_snap=1.0,
+    output_format="chip",
+    include_imports=True,
+    create_code=True,
+):
     """Prints out the Python code required to create the cells in top_cell.
 
     For each instance that is selected in GUI, prints out an `insert_cell()` command that can be copy pasted to a chip's
@@ -47,26 +54,27 @@ def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_ins
             at that refpoint.
         grid_snap: If a waveguide point was not close enough to a refpoint, it will be snapped to a square grid with
             square side length equal to `grid_snap`
-        output_format: Determines the format of the code for placing cells and if some extra code is printed. Has the
-            following options:
+        output_format: Determines the format of the code for placing cells. Has the following options:
 
-            * "insert_cell": only insert_cell() calls which can be copied to existing chip's/element's build method
-            * "insert_cell+chip": same as previous, but prints also the chip code, can copy to empty file to create
-              new chip
-            * "create": only create() and cell.insert() calls which can be copied to an existing macro with layout
-              and top_cell
-            * "create+macro": same as previous, but includes initial lines for macro, can copy to empty file to
-              create new macro
+            * "build": Creates code that can be used inside the ``build`` method of a ``Chip`` or ``Element``
+            * "chip": Same as the above, but also outputs a full ``Chip`` class definition
+            * "macro": Creates code that can be used in a stand-alone KLayout macro or python script
 
         include_imports: If true, then import statements for all used elements are included in the generated code
-        use_create_with_refpoints: If true, then create_with_refpoints() is used instead of create(). Only used when
-            output_format is "create" or "create+macro". Required if you want to use refpoints as waveguide points.
         create_code: if False then does not export code but snap cells to refpoints in place
 
     Returns:
         str: The generated Python code. This is also printed.
     """
 
+    if output_format in ["build", "chip"]:
+        parent_object = "self"
+        element_context = True
+    elif output_format == "macro":
+        parent_object = "view"
+        element_context = False
+    else:
+        raise ValueError(f"Unknown output format: {output_format}")
     layout = top_cell.layout()
 
     instances = []
@@ -84,26 +92,26 @@ def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_ins
         for inst in top_cell.each_inst():
             _add_instance(inst, instances, inst_names, pcell_classes)
 
-    # Order the instances according to cell type, x-coordinate, and y-coordinate
-    instances = sorted(instances, key=lambda inst: (inst.cell.name, -inst.dtrans.disp.y, inst.dtrans.disp.x))
-    pcell_classes = sorted(pcell_classes, key=lambda pcell_class: pcell_class.__module__)
+    def sort_order(inst):
+        """Move waveguide instances to the end without reordering, and sort all other elements by name and position."""
+        if isinstance(inst.pcell_declaration(), (WaveguideComposite, WaveguideCoplanar)):
+            return (1,)
+        else:
+            return 0, inst.cell.name, -inst.dtrans.disp.y, inst.dtrans.disp.x
 
-    # Move all WaveguideComposite and WaveguideCoplanar elements to the end of the list. This is required so that the
-    # refpoints from other instances can be used as waveguide path points. We can assume here that all
-    # WaveguideComposite and WaveguideCoplanar are consecutive elements in the list due to the previous sorting
-    instances = _move_to_end(instances, WaveguideComposite)
-    instances = _move_to_end(instances, WaveguideCoplanar)
+    instances = sorted(instances, key=sort_order)
+    pcell_classes = sorted(pcell_classes, key=lambda pcell_class: pcell_class.__module__)
 
     # Add names to placed instances and create chip-level refpoints with those names
     if add_instance_names:
         for inst in instances:
-            if inst.property("id") is None and \
-                    not isinstance(inst.pcell_declaration(), (WaveguideComposite, WaveguideCoplanar)):
+            if inst.property("id") is None:
                 inst_name = _get_unique_inst_name(inst, inst_names)
                 inst_names.append(inst_name)
                 inst.set_property("id", inst_name)
-                inst_refpoints = get_refpoints(layout.layer(default_layers["refpoints"]), inst.cell, inst.dcplx_trans,
-                                               0)
+                inst_refpoints = get_refpoints(
+                    layout.layer(default_layers["refpoints"]), inst.cell, inst.dcplx_trans, 0
+                )
                 for name, refpoint in inst_refpoints.items():
                     text = pya.DText(f"{inst_name}_{name}", refpoint.x, refpoint.y)
                     top_cell.shapes(layout.layer(default_layers["refpoints"])).insert(text)
@@ -111,7 +119,8 @@ def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_ins
     # Get refpoints used for snapping waveguide points
     refpoints = get_refpoints(layout.layer(default_layers["refpoints"]), top_cell)
     # only use refpoints of named instances
-    refpoints = {name: point for name, point in refpoints.items() if name.startswith(tuple(inst_names))}
+    prefixes_to_filter = tuple(name + "_" for name in inst_names)
+    refpoints = {name: point for name, point in refpoints.items() if name.startswith(prefixes_to_filter)}
 
     # Generate code for importing the used element. More element imports may be added later when generating code from
     # waveguide nodes.
@@ -122,20 +131,34 @@ def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_ins
         if print_waveguides_as_composite or WaveguideComposite in pcell_classes:
             element_imports += f"from {WaveguideComposite.__module__} import {Node.__name__}\n"
 
-    def get_waveguide_code(inst, pcell_type):
-        point_prefix="pya.DPoint"
-        point_postfix=""
-        refpoint_prefix=""
-        refpoint_postfix=""
-        path_str="path=pya.DPath(["
-        postfix="], 0)"
+    def format_element_code(pcell_type, inst_name, transform_string, parameter_string):
+        var_name = inst_name.replace("-", "_")
+        args = [pcell_type]
+        if transform_string:
+            args.append(transform_string)
+        if inst_name:
+            args.append(f'inst_name="{inst_name}"')
+        args.append(parameter_string)
+        arg_string = ", ".join(args)
+        if element_context or var_name == "":
+            return f"{parent_object}.insert_cell({arg_string})\n"
+        else:
+            return f"{var_name}, {var_name}_refpoints = {parent_object}.insert_cell({arg_string})\n"
+
+    def get_waveguide_code(inst, pcell_type, instance_names_defined_so_far):
+        point_prefix = "pya.DPoint"
+        point_postfix = ""
+        refpoint_prefix = ""
+        refpoint_postfix = ""
+        path_str = "path=pya.DPath(["
+        postfix = "], 0)"
         if pcell_type == "WaveguideComposite":
-            point_prefix="Node("
-            point_postfix=")"
-            refpoint_prefix="Node("
-            refpoint_postfix=")"
-            path_str="nodes=["
-            postfix="]"
+            point_prefix = "Node("
+            point_postfix = ")"
+            refpoint_prefix = "Node("
+            refpoint_postfix = ")"
+            path_str = "nodes=["
+            postfix = "]"
 
         wg_points = []
         nodes = None
@@ -154,8 +177,8 @@ def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_ins
 
         for i, path_point in enumerate(wg_points):
             path_point += inst.dtrans.disp
-            x_snapped = grid_snap*round(path_point.x/grid_snap)
-            y_snapped = grid_snap*round(path_point.y/grid_snap)
+            x_snapped = grid_snap * round(path_point.x / grid_snap)
+            y_snapped = grid_snap * round(path_point.y / grid_snap)
             node_params = ""
             if nodes is not None:
                 node_params, node_elem = get_node_params(nodes[i])
@@ -166,119 +189,73 @@ def convert_cells_to_code(top_cell, print_waveguides_as_composite=False, add_ins
                         element_imports += node_elem_import
 
             # If a refpoint is close to the path point, snap the path point to it
-            closest_refpoint_name = _get_closest_refpoint(refpoints, path_point, refpoint_snap)
+            closest_refpoint_name = _get_closest_refpoint(
+                refpoints, path_point, refpoint_snap, instance_names_defined_so_far
+            )
             if closest_refpoint_name is not None:
-                if output_format.startswith("insert_cell"):
-                    path_str += f"{refpoint_prefix}self.refpoints[\"{closest_refpoint_name}\"]{node_params}" \
-                                f"{refpoint_postfix}, "
-                elif use_create_with_refpoints:
+                if element_context:
+                    path_str += (
+                        f'{refpoint_prefix}{parent_object}.refpoints["{closest_refpoint_name}"]{node_params}'
+                        f"{refpoint_postfix}, "
+                    )
+                else:
                     refp_split = closest_refpoint_name.split("_")
                     refp_name = "_".join(refp_split[1:])
-                    path_str += f"{refpoint_prefix}{refp_split[0].replace('-', '_')}_refpoints[\"{refp_name}\"]" \
-                                f"{node_params}{refpoint_postfix}, "
-                else:
-                    path_str += f"{point_prefix}({x_snapped}, {y_snapped}){node_params}{point_postfix}, "
+                    path_str += (
+                        f"{refpoint_prefix}{refp_split[0].replace('-', '_')}_refpoints[\"{refp_name}\"]"
+                        f"{node_params}{refpoint_postfix}, "
+                    )
             else:
                 path_str += f"{point_prefix}({x_snapped}, {y_snapped}){node_params}{point_postfix}, "
         path_str = path_str[:-2]  # Remove extra comma and space
         path_str += postfix + wg_params
 
-        if output_format.startswith("insert_cell"):
-            return f"self.insert_cell({pcell_type}, {path_str})\n"
-        else:
-            return f"view.insert_cell({pcell_type}, {path_str})\n"
+        inst_name = inst.property("id") if (inst.property("id") is not None) else ""
+        return format_element_code(pcell_type, inst_name, "", path_str)
 
     # Generate the code for creating each instance
     instances_code = ""
+    instance_names_so_far = set()
     for inst in instances:
-        # Print python code for creating the instance at the given position
-        cell = _get_cell(inst)
-        transform = _transform_as_string(inst)
         pcell_declaration = inst.pcell_declaration()
-        if pcell_declaration is not None:
-            if isinstance(pcell_declaration, Element):
-                pcell_type = type(pcell_declaration).__name__
-                # special handling for waveguides
-                if isinstance(pcell_declaration, (WaveguideComposite, WaveguideCoplanar)):
-                    if pcell_type == "WaveguideCoplanar" and print_waveguides_as_composite:
-                        pcell_type = "WaveguideComposite"
-                    if create_code:
-                        instances_code += get_waveguide_code(inst, pcell_type)
-                    else:
-                        _snap_waveguide_to_refpoints(inst, refpoints, refpoint_snap, grid_snap)
-                        continue
-                # other elements
-                else:
-                    inst_name = inst.property('id') if (inst.property('id') is not None) else ""
-                    var_name = inst_name.replace("-", "_")
-                    transform_nonempty = transform if transform != "" else "pya.DTrans()"
-                    if output_format.startswith("insert_cell"):
-                        inst_name = f"inst_name=\"{inst_name}\"" if (inst_name != "") else ""
-                        inst_name = f", {inst_name}" if transform != "" else inst_name
-                        instances_code += \
-                            f"self.insert_cell({pcell_type}, {transform}{inst_name}{_pcell_params_as_string(cell)})\n"
-                    elif use_create_with_refpoints:
-                        refpoint_transform = f"refpoint_transform={transform}, " if transform != "" else ""
-                        instances_code += \
-                            f"{var_name}, {var_name}_refpoints = {pcell_type}.create_with_refpoints(layout, " \
-                            f"{refpoint_transform}rec_levels=0{_pcell_params_as_string(cell)})\n"
-                        instances_code += f"view.insert_cell({var_name}, {transform_nonempty})\n"
-                    else:
-                        instances_code += \
-                            f"{var_name} = {pcell_type}.create(layout{_pcell_params_as_string(cell)})\n"
-                        instances_code += f"view.insert_cell({var_name}, {transform_nonempty})\n"
-            else:
-                # non-Element PCell
-                if output_format.startswith("insert_cell"):
-                    instances_code += \
-                        f"cell = self.layout.create_cell(\"{cell.name}\", \"{cell.library().name()}\", " \
-                        f"{cell.pcell_parameters_by_name()})\n"
-                    instances_code += f"self.insert_cell(cell, {transform})\n"
-                else:
-                    instances_code += \
-                        f"cell = layout.create_cell(\"{cell.name}\", \"{cell.library().name()}\", " \
-                        f"{cell.pcell_parameters_by_name()})\n" \
-                        f"view.insert_cell(cell, {transform})\n"
+        pcell_type = type(pcell_declaration).__name__
+        cell = _get_cell(inst)
 
-        else:
-            # static cell
-            if output_format.startswith("insert_cell"):
-                instances_code += f"cell = self.layout.create_cell(\"{cell.name}\", \"{cell.library().name()}\")\n"
-                instances_code += f"self.insert_cell(cell, {transform})\n"
+        if isinstance(pcell_declaration, (WaveguideComposite, WaveguideCoplanar)):
+            output_pcell_type = "WaveguideComposite" if print_waveguides_as_composite else pcell_type
+            if create_code:
+                instances_code += get_waveguide_code(inst, output_pcell_type, instance_names_so_far)
             else:
-                instances_code += f"cell = layout.create_cell(\"{cell.name}\", \"{cell.library().name()}\")\n"
-                instances_code += f"view.insert_cell(cell, {transform})\n"
+                _snap_waveguide_to_refpoints(inst, refpoints, refpoint_snap, grid_snap, instance_names_so_far)
+        else:
+            inst_name = inst.property("id") if (inst.property("id") is not None) else ""
+            instances_code += format_element_code(
+                pcell_type, inst_name, _transform_as_string(inst), _pcell_params_as_string(cell)
+            )
+
+        if inst.property("id") is not None:
+            instance_names_so_far.add(inst.property("id"))
 
     if not create_code:
         return ""
 
     # Generate code for the beginning of the chip or macro file if needed
-    start_code = ""
-    if output_format == "insert_cell+chip":
-        start_code += textwrap.dedent("""\
-            from kqcircuits.pya_resolver import pya
-            from kqcircuits.chips.chip import Chip\n\n""")
-        start_code += element_imports + "\n"
-        start_code += textwrap.dedent("""\
-
-            class NewChip(Chip):
-
-                def build(self):\n\n""")
-    elif output_format == "create+macro":
-        start_code += "from kqcircuits.pya_resolver import pya\n"
-        start_code += "from kqcircuits.klayout_view import KLayoutView\n\n"
-        start_code += element_imports + "\n"
-        start_code += "view = KLayoutView()\n"
-        start_code += "layout = view.layout\n\n"
+    if output_format == "chip":
+        return (
+            "from kqcircuits.pya_resolver import pya\n"
+            "from kqcircuits.chips.chip import Chip\n\n" + element_imports + "\n"
+            "class NewChip(Chip):\n\n"
+            "    def build(self):\n" + textwrap.indent(instances_code, "        ") + "\n"
+        )
+    elif output_format == "macro":
+        return (
+            "from kqcircuits.pya_resolver import pya\n"
+            "from kqcircuits.klayout_view import KLayoutView\n\n" + element_imports + "\n"
+            "view = KLayoutView()\n"
+            "layout = view.layout\n\n" + instances_code
+        )
     else:
-        start_code += element_imports + "\n"
-
-    if output_format == "insert_cell+chip":
-        full_code = start_code + textwrap.indent(instances_code, "        ") + "\n"
-    else:
-        full_code = start_code + instances_code
-
-    return full_code
+        return element_imports + "\n" + instances_code
 
 
 def _transform_as_string(inst):
@@ -297,14 +274,13 @@ def _transform_as_string(inst):
 
 
 def _add_instance(inst, instances, inst_names, pcell_classes):
-    cell = _get_cell(inst)
-    inst_name = inst.property('id')
+    inst_name = inst.property("id")
     pcell_decl = inst.pcell_declaration()
     # ChipFrame is always constructed by Chip, so we don't want to generate code for it
     if isinstance(pcell_decl, ChipFrame):
         return
-    # Instance name labels are generated based on element instance names, we don't want to create them explicitly
-    if cell.name == "TEXT":
+    # We exclude PCells that are not KQCircuits elements
+    if not isinstance(pcell_decl, Element):
         return
     instances.append(inst)
     if inst_name is not None:
@@ -332,30 +308,20 @@ def _get_unique_inst_name(inst, inst_names):
 def _pcell_params_as_string(cell):
     params = cell.pcell_parameters_by_name()
     params_schema = type(cell.pcell_declaration()).get_schema()
-    params_str = ""
+    params_list = []
     for param_name, param_declaration in params_schema.items():
-        if (params[param_name] != param_declaration.default and param_name != "refpoints"
-                and not (param_name.startswith("_") and param_name.endswith("_parameters"))):
+        if (
+            params[param_name] != param_declaration.default
+            and param_name != "refpoints"
+            and not (param_name.startswith("_") and param_name.endswith("_parameters"))
+        ):
             param_value = params[param_name]
             if isinstance(param_value, str):
                 param_value = repr(param_value)
             if isinstance(param_value, pya.DPoint):
                 param_value = f"pya.DPoint({param_value})"
-            params_str += f", {param_name}={param_value}"
-    return params_str
-
-
-def _move_to_end(instances, pcell_type):
-    """Returns `instances` list where instances of `pcell_type` are at the end
-
-    Assumes that all `pcell_type` instances are consecutive elements of the list.
-    """
-    wg_indices = [idx for idx, inst in enumerate(instances) if isinstance(inst.pcell_declaration(), pcell_type)]
-    if len(wg_indices) > 0:
-        if wg_indices[-1] < len(instances) - 1:  # otherwise the waveguides are already at the end of instances list
-            instances = \
-                instances[:wg_indices[0]] + instances[wg_indices[-1] + 1:] + instances[wg_indices[0]:wg_indices[-1] + 1]
-    return instances
+            params_list.append(f"{param_name}={param_value}")
+    return ", ".join(params_list)
 
 
 def get_node_params(node: Node):
@@ -376,11 +342,13 @@ def get_node_params(node: Node):
         if k == "element" and v is not None:
             node_params += f", {v.__name__}"
             elem = v
-        elif (k == "inst_name" and v is not None) or \
-                (k == "align" and v != tuple()) or \
-                (k == "angle" and v is not None) or \
-                (k == "length_before" and v is not None) or \
-                (k == "length_increment" and v is not None):
+        elif (
+            (k == "inst_name" and v is not None)
+            or (k == "align" and v != tuple())
+            or (k == "angle" and v is not None)
+            or (k == "length_before" and v is not None)
+            or (k == "length_increment" and v is not None)
+        ):
             node_params += f", {k}={repr(v)}"
         elif k == "params":
             # Expand keyword arguments to Node
@@ -432,13 +400,13 @@ def restore_pcells_to_views(views):
         top_cell = main_window.view(vid).active_cellview().cell
         pcells = views[vid]
         for pc in pcells:
-            def_params = {k:v.default for k, v in pc[0].get_schema().items()}
+            def_params = {k: v.default for k, v in pc[0].get_schema().items()}
             params = {**def_params, **pc[2]}
             insert_cell_into(top_cell, pc[0], pc[1], **params)
         top_cell.refresh()
 
 
-def _snap_waveguide_to_refpoints(inst, refpoints, refpoint_snap, grid_snap):
+def _snap_waveguide_to_refpoints(inst, refpoints, refpoint_snap, grid_snap, instance_names_defined_so_far):
     """Helper function to do only refpoint and grid snapping."""
     wg_points = []
     _params = inst.pcell_parameters_by_name()
@@ -453,10 +421,12 @@ def _snap_waveguide_to_refpoints(inst, refpoints, refpoint_snap, grid_snap):
     new_points = []
     for i, path_point in enumerate(wg_points):
         _point = path_point + inst.dtrans.disp
-        x_snapped = grid_snap*round(_point.x/grid_snap)
-        y_snapped = grid_snap*round(_point.y/grid_snap)
+        x_snapped = grid_snap * round(_point.x / grid_snap)
+        y_snapped = grid_snap * round(_point.y / grid_snap)
 
-        closest_refpoint_name = _get_closest_refpoint(refpoints, path_point, refpoint_snap)
+        closest_refpoint_name = _get_closest_refpoint(
+            refpoints, path_point, refpoint_snap, instance_names_defined_so_far
+        )
         if closest_refpoint_name is not None:
             new_points.append(refpoints[closest_refpoint_name])
         else:
@@ -467,12 +437,12 @@ def _snap_waveguide_to_refpoints(inst, refpoints, refpoint_snap, grid_snap):
         new_points[i] = point * itrans
 
     if type(inst.pcell_declaration()).__name__ == "WaveguideCoplanar":
-        inst.change_pcell_parameter('path', pya.DPath(new_points, 1))
+        inst.change_pcell_parameter("path", pya.DPath(new_points, 1))
     else:
-        inst.change_pcell_parameter('gui_path', pya.DPath(new_points, 1))
+        inst.change_pcell_parameter("gui_path", pya.DPath(new_points, 1))
 
 
-def _get_closest_refpoint(refpoints, path_point, refpoint_snap):
+def _get_closest_refpoint(refpoints, path_point, refpoint_snap, allowed_instance_names=None):
     closest_dist = float_info.max
     closest_refpoint_name = None
     for name, point in refpoints.items():
@@ -481,6 +451,7 @@ def _get_closest_refpoint(refpoints, path_point, refpoint_snap):
             # If this refpoint is at exact same position as closest_refpoint, compare also refpoint names.
             # This should ensure that chip-level refpoints are chosen over lower-level refpoints.
             if dist < closest_dist or (len(name) > len(closest_refpoint_name)):
-                closest_dist = dist
-                closest_refpoint_name = name
+                if allowed_instance_names is None or name.split("_")[0] in allowed_instance_names:
+                    closest_dist = dist
+                    closest_refpoint_name = name
     return closest_refpoint_name

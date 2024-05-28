@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 import pytest
 
 from kqcircuits.elements.waveguide_coplanar_splitter import WaveguideCoplanarSplitter, t_cross_parameters
@@ -30,11 +31,17 @@ from kqcircuits.elements.flip_chip_connectors.flip_chip_connector_rf import Flip
 
 @pytest.fixture
 def nodes1():
-    """ Node list that uses all features and parameters and some combinations of these """
+    """Node list that uses all features and parameters and some combinations of these"""
     return [
         Node(pya.DPoint(0, 0)),
-        Node(pya.DPoint(200, 0), AirbridgeConnection, airbridge_type="Airbridge Rectangular",
-             with_side_airbridges=False, b=4, a=5),
+        Node(
+            pya.DPoint(200, 0),
+            AirbridgeConnection,
+            airbridge_type="Airbridge Rectangular",
+            with_side_airbridges=False,
+            b=4,
+            a=5,
+        ),
         Node(pya.DPoint(400, 0), FlipChipConnectorRf, face_id="2b1"),
         Node(pya.DPoint(600, 0), AirbridgeConnection, with_side_airbridges=False),
         Node(pya.DPoint(800, 0), FingerCapacitorSquare),
@@ -46,14 +53,27 @@ def nodes1():
         Node(pya.DPoint(1700, 0), FlipChipConnectorRf, face_id="1t1", connector_type="Single"),
         Node(pya.DPoint(1900, 0), AirbridgeConnection, with_side_airbridges=True),
         Node(pya.DPoint(2100, 0)),
-        Node(pya.DPoint(2150, 0), WaveguideCoplanarSplitter, **t_cross_parameters(a=10, b=5),
-             align=("port_left", "port_right")),
+        Node(
+            pya.DPoint(2150, 0),
+            WaveguideCoplanarSplitter,
+            **t_cross_parameters(a=10, b=5),
+            align=("port_left", "port_right"),
+        ),
         Node(pya.DPoint(2350, 50)),
-        Node(pya.DPoint(2400, 50), WaveguideCoplanarSplitter, **t_cross_parameters(a=10, b=5),
-             align=("port_right", "port_left"), inst_name="second_tee"),
+        Node(
+            pya.DPoint(2400, 50),
+            WaveguideCoplanarSplitter,
+            **t_cross_parameters(a=10, b=5),
+            align=("port_right", "port_left"),
+            inst_name="second_tee",
+        ),
         Node(pya.DPoint(2500, 50)),
-        Node(pya.DPoint(2600, 50), WaveguideCoplanarSplitter, **t_cross_parameters(a=10, b=5),
-             align=("port_bottom", "port_right")),
+        Node(
+            pya.DPoint(2600, 50),
+            WaveguideCoplanarSplitter,
+            **t_cross_parameters(a=10, b=5),
+            align=("port_bottom", "port_right"),
+        ),
         Node(pya.DPoint(2700, -200)),
         Node(pya.DPoint(2700, -500), FlipChipConnectorRf, face_id="2b1", output_rotation=90),
         Node(pya.DPoint(2500, -400)),
@@ -62,7 +82,7 @@ def nodes1():
 
 @pytest.fixture
 def nodes2():
-    """ Node list specifying *exactly* the same waveguide as nodes1, but but using simplified notation """
+    """Node list specifying *exactly* the same waveguide as nodes1, but but using simplified notation"""
     return [
         Node((0, 0)),
         Node((200, 0), AirbridgeRectangular, a=5, b=4),
@@ -77,14 +97,27 @@ def nodes2():
         Node((1700, 0), face_id="1t1", connector_type="Single"),
         Node((1900, 0), AirbridgeConnection),
         Node((2100, 0)),
-        Node(pya.DPoint(2150, 0), WaveguideCoplanarSplitter, **t_cross_parameters(a=10, b=5),
-             align=("port_left", "port_right")),
+        Node(
+            pya.DPoint(2150, 0),
+            WaveguideCoplanarSplitter,
+            **t_cross_parameters(a=10, b=5),
+            align=("port_left", "port_right"),
+        ),
         Node(pya.DPoint(2350, 50)),
-        Node(pya.DPoint(2400, 50), WaveguideCoplanarSplitter, **t_cross_parameters(a=10, b=5),
-             align=("port_right", "port_left"), inst_name="second_tee"),
+        Node(
+            pya.DPoint(2400, 50),
+            WaveguideCoplanarSplitter,
+            **t_cross_parameters(a=10, b=5),
+            align=("port_right", "port_left"),
+            inst_name="second_tee",
+        ),
         Node(pya.DPoint(2500, 50)),
-        Node(pya.DPoint(2600, 50), WaveguideCoplanarSplitter, **t_cross_parameters(a=10, b=5),
-             align=("port_bottom", "port_right")),
+        Node(
+            pya.DPoint(2600, 50),
+            WaveguideCoplanarSplitter,
+            **t_cross_parameters(a=10, b=5),
+            align=("port_bottom", "port_right"),
+        ),
         Node(pya.DPoint(2700, -200)),
         Node(pya.DPoint(2700, -500), face_id="2b1", output_rotation=90),
         Node(pya.DPoint(2500, -400)),
@@ -118,7 +151,7 @@ def test_length(nodes1):
     l1 = wg.length()
 
     # length of fc-bump and capacitors don't count
-    for node in nodes1:    # make them empty Nodes
+    for node in nodes1:  # make them empty Nodes
         if node.element is not AirbridgeConnection:
             node.element = None
             node.params = {}
@@ -129,11 +162,11 @@ def test_length(nodes1):
 
     # Without "special" nodes it should be identical to a plain WaveguideCoplanar
     points = []
-    for node in nodes1:    # get the points
+    for node in nodes1:  # get the points
         points.append(node.position)
     wg = WaveguideCoplanar.create(layout, path=pya.DPath(points, 1))
     l3 = wg.length()
-    assert abs(l2 - l3)/l2 < 1e-12
+    assert abs(l2 - l3) / l2 < 1e-12
 
 
 relative_length_tolerance = 1e-3
@@ -142,10 +175,7 @@ relative_length_tolerance = 1e-3
 def test_length_one_series_airbridge():
     layout = pya.Layout()
     length = 400
-    nodes = [
-        Node((250 + length, -500)),
-        Node((250, -500), Airbridge, a=20, b=30)
-    ]
+    nodes = [Node((250 + length, -500)), Node((250, -500), Airbridge, a=20, b=30)]
     wg = WaveguideComposite.create(layout, nodes=nodes)
 
     true_length = wg.length()
@@ -157,10 +187,7 @@ def test_length_one_series_airbridge():
 def test_length_before_straight():
     layout = pya.Layout()
     length = 2500
-    nodes = [
-        Node((0, 0)),
-        Node((0, 1000), length_before=length)
-    ]
+    nodes = [Node((0, 0)), Node((0, 1000), length_before=length)]
     wg = WaveguideComposite.create(layout, nodes=nodes)
 
     true_length = wg.length()
@@ -177,12 +204,12 @@ def test_length_before_diagonal():
         Node((0, 0)),
         Node((straight_len, 0), angle=0),
         Node((1500, 1000), length_before=length, angle=0),
-        Node((1500 + straight_len, 1000))
+        Node((1500 + straight_len, 1000)),
     ]
     wg = WaveguideComposite.create(layout, nodes=nodes)
 
     total_length = wg.length()
-    true_length = total_length - 2*straight_len
+    true_length = total_length - 2 * straight_len
     relative_length_error = abs(true_length - length) / length
 
     assert relative_length_error < relative_length_tolerance
@@ -196,12 +223,12 @@ def test_length_before_diagonal_non_90_deg_turns():
         Node((0, 0)),
         Node((straight_len, 0), angle=0),
         Node((1500, 1300), length_before=length, angle=0),
-        Node((1500 + straight_len, 1300))
+        Node((1500 + straight_len, 1300)),
     ]
     wg = WaveguideComposite.create(layout, nodes=nodes)
 
     total_length = wg.length()
-    true_length = total_length - 2*straight_len
+    true_length = total_length - 2 * straight_len
     relative_length_error = abs(true_length - length) / length
 
     assert relative_length_error < relative_length_tolerance

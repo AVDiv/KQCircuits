@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 """
     Helper module for building KLayout libraries.
@@ -102,11 +103,11 @@ def load_libraries(flush=False, path=""):
         library = pya.Library.library_by_name(library_name)  # returns only registered libraries
         if (library is None) or flush:
             if library_name in _kqc_libraries.keys():
-                logging.debug("Using created library \"%s\".", library_name)
+                logging.debug('Using created library "%s".', library_name)
                 library, _ = _kqc_libraries[library_name]
             else:
                 # create a library, but do not register it yet
-                logging.debug(f"Creating new library \"{library_name}\".")
+                logging.debug(f'Creating new library "{library_name}".')
                 library = pya.Library()
                 library.description = cls.LIBRARY_DESCRIPTION
                 _kqc_libraries[library_name] = (library, library_path)
@@ -251,10 +252,7 @@ def _register_pcell(pcell_class, library, library_name):
         library.layout().register_pcell(pcell_name, pcell_class())
         logging.debug(f"Registered pcell [{pcell_name}] to library {library_name}.")
     except Exception:  # pylint: disable=broad-except
-        logging.warning(
-            f"Failed to register pcell in class {pcell_class} to library {library_name}.",
-            exc_info=True
-        )
+        logging.warning(f"Failed to register pcell in class {pcell_class} to library {library_name}.", exc_info=True)
 
 
 def _load_manual_designs(library_name):
@@ -300,7 +298,7 @@ def _get_all_pcell_classes(reload=False, path="", skip_modules=False):
                 if module_name in skip_list:
                     continue
                 # Get the module path starting from the "pkg" directory below project root directory.
-                import_path_parts = mp.parts[::-1][mp.parts[::-1].index(pkg)::-1]
+                import_path_parts = mp.parts[::-1][mp.parts[::-1].index(pkg) :: -1]
                 import_path = ".".join(import_path_parts)[:-3]  # the -3 is for removing ".py" from the path
 
                 module = importlib.import_module(import_path)
@@ -354,6 +352,7 @@ def _get_pcell_class(name=None, module=None):
         return value
     else:
         return None
+
 
 def _is_valid_class_name(value=None):
     """Check if string value is valid PEP-8 compliant Python class name."""

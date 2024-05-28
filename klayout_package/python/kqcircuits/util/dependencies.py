@@ -12,31 +12,33 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from importlib import util, import_module
 
-# Record dependencies in setup.py too
+# Record dependencies in requirements.in too:
 kqc_python_dependencies = {
     "numpy": "numpy>=1.16",
     "scipy": "scipy>=1.2",
     "tqdm": "tqdm>=4.61",
-    "networkx": "networkx>=2.7",
+    "networkx": "networkx>=3.2.1",
 }
 
 
 def install_kqc_dependencies():
     """Check KQCircuits' dependencies and install/upgrade if missing.
 
-    This is *only* for KLayout. Stand-alone mode needs manual pip install, preferably in a venv.
+    This is *only* for KLayout. Stand-alone mode needs manual pip install or pip-sync, preferably in a venv.
     This function should run only once at KLayout startup.
     """
     # pylint: disable=import-outside-toplevel
 
     from kqcircuits.pya_resolver import pya
+
     # Skip installation in stand-alone python package mode
-    if not hasattr(pya, 'MessageBox'):
+    if not hasattr(pya, "MessageBox"):
         return
 
     missing_pkgs = []
@@ -56,12 +58,16 @@ def install_kqc_dependencies():
 
     # Install missing modules inside KLayout.
     from pip import __main__
+
     if hasattr(__main__, "_main"):
         main = __main__._main
     else:
         from pip._internal.cli.main import main
 
-    ask = pya.MessageBox.warning("Install packages?", "Install missing packages using 'pip': " +
-                                 ", ".join(missing_pkgs), pya.MessageBox.Yes + pya.MessageBox.No)
+    ask = pya.MessageBox.warning(
+        "Install packages?",
+        "Install missing packages using 'pip': " + ", ".join(missing_pkgs),
+        pya.MessageBox.Yes + pya.MessageBox.No,
+    )
     if ask == pya.MessageBox.Yes:
-        main(['install'] + [kqc_python_dependencies[pkg] for pkg in missing_pkgs])
+        main(["install"] + [kqc_python_dependencies[pkg] for pkg in missing_pkgs])

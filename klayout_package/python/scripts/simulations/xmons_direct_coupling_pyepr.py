@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 import logging
 import sys
@@ -24,8 +25,11 @@ from kqcircuits.simulations.export.ansys.ansys_export import export_ansys
 from kqcircuits.simulations.export.simulation_export import sweep_simulation, export_simulation_oas
 
 from kqcircuits.simulations.xmons_direct_coupling_sim import XMonsDirectCouplingSim
-from kqcircuits.util.export_helper import create_or_empty_tmp_directory, get_active_or_new_layout, \
-    open_with_klayout_or_default_application
+from kqcircuits.util.export_helper import (
+    create_or_empty_tmp_directory,
+    get_active_or_new_layout,
+    open_with_klayout_or_default_application,
+)
 
 # Prepare output directory
 dir_path = create_or_empty_tmp_directory(Path(__file__).stem + "_output")
@@ -33,25 +37,23 @@ dir_path = create_or_empty_tmp_directory(Path(__file__).stem + "_output")
 # Simulation parameters
 sim_class = XMonsDirectCouplingSim  # pylint: disable=invalid-name
 sim_parameters = {
-    'name': 'three_coupled_xmons',
-    'use_internal_ports': True,
-    'box': pya.DBox(pya.DPoint(3500, 3500), pya.DPoint(6500, 6500))
+    "name": "three_coupled_xmons",
+    "use_internal_ports": True,
+    "box": pya.DBox(pya.DPoint(3500, 3500), pya.DPoint(6500, 6500)),
 }
 
 export_parameters = {
-    'path': dir_path,
-    'ansys_tool': 'eigenmode',
-    'percent_refinement': 30,
-    'maximum_passes': 17,
-    'minimum_passes': 1,
-    'minimum_converged_passes': 2,
-    'exit_after_run': True,
-
-    'max_delta_f': 0.1,  # maximum relative difference for convergence in %
-    'n_modes': 2,  # eigenmodes to solve
-    'frequency': 0.1,  # minimum allowed eigenmode frequency
-    'simulation_flags': ['pyepr'],  # required for setting up pyepr specific stuff
-    'substrate_loss_tangent': 1e-6,  # Loss tangents for estimating quality factor
+    "path": dir_path,
+    "ansys_tool": "eigenmode",
+    "percent_refinement": 30,
+    "maximum_passes": 17,
+    "minimum_passes": 1,
+    "minimum_converged_passes": 2,
+    "exit_after_run": True,
+    "max_delta_f": 0.1,  # maximum relative difference for convergence in %
+    "n_modes": 2,  # eigenmodes to solve
+    "min_frequency": 0.1,  # minimum allowed eigenmode frequency
+    "simulation_flags": ["pyepr"],  # required for setting up pyepr specific stuff
 }
 
 # Get layout
@@ -62,10 +64,7 @@ layout = get_active_or_new_layout()
 simulations = [sim_class(layout, **sim_parameters)]
 
 # Sweep geometry for simulations
-simulations += sweep_simulation(layout, sim_class, sim_parameters, {
-    'qubit_spacing': [5, 15],
-    'cpl_width': [12]
-})
+simulations += sweep_simulation(layout, sim_class, sim_parameters, {"qubit_spacing": [5, 15], "cpl_width": [12]})
 
 # Export Ansys files
 export_ansys(simulations, **export_parameters)

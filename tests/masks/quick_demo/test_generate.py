@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 import os
 
@@ -30,17 +31,17 @@ def test_generate_quick_demo(tmp_path):
 
     _run_mask("masks/quick_demo.py", tmp_path)
 
-    mask_path = tmp_path.joinpath('Quick_v1/Quick_v1-1t1')
-    chips_path = tmp_path.joinpath('Quick_v1/Chips')
+    mask_path = tmp_path.joinpath("Quick_v1/Quick_v1-1t1")
+    chips_path = tmp_path.joinpath("Quick_v1/Chips")
 
-    assert chips_path.joinpath('DE1').exists()
-    assert chips_path.joinpath('DE1/DE1.png').exists()
-    assert chips_path.joinpath('DE1/DE1.oas').exists()
-    assert chips_path.joinpath('CH1').exists()
-    assert chips_path.joinpath('CH1/CH1.png').exists()
-    assert chips_path.joinpath('CH1/CH1.oas').exists()
-    assert mask_path.joinpath('Quick_v1-1t1.oas').exists()
-    assert mask_path.joinpath('Quick_v1-1t1.png').exists()
+    assert chips_path.joinpath("DE1").exists()
+    assert chips_path.joinpath("DE1/DE1.png").exists()
+    assert chips_path.joinpath("DE1/DE1.oas").exists()
+    assert chips_path.joinpath("CH1").exists()
+    assert chips_path.joinpath("CH1/CH1.png").exists()
+    assert chips_path.joinpath("CH1/CH1.oas").exists()
+    assert mask_path.joinpath("Quick_v1-1t1.oas").exists()
+    assert mask_path.joinpath("Quick_v1-1t1.png").exists()
 
 
 def _run_mask(path, tmp_path):
@@ -49,6 +50,6 @@ def _run_mask(path, tmp_path):
     with open(file, "r") as fp:
         code = fp.read()
 
-    code = code.replace('MaskSet(name=', 'MaskSet(export_path=tmp_path, name=')
+    code = code.replace("MaskSet(name=", "MaskSet(export_path=tmp_path, name=")
 
     exec(code, globals(), _locals)  # pylint: disable=exec-used

@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 # Convert .oas to .dxf or the other way around
@@ -40,7 +41,7 @@ slo.write_context_info = False
 
 if file_out.endswith(".oas"):
     slo.oasis_substitution_char = "*"
-    if file_in.endswith(".dxf"):    # DXF does not record TOP cell, let's use the file name
+    if file_in.endswith(".dxf"):  # DXF does not record TOP cell, let's use the file name
         layout.top_cell().name = path.split(file_out)[1][:-4]
 
 layout.write(file_out, slo)

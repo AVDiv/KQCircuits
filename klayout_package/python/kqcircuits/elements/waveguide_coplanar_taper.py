@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import math
@@ -26,7 +27,7 @@ from kqcircuits.elements.waveguide_coplanar_straight import WaveguideCoplanarStr
 
 
 @add_parameters_from(WaveguideCoplanarStraight, "add_metal")
-@add_parameters_from(FingerCapacitorSquare, a2=Element.a*2, b2=Element.b*2)
+@add_parameters_from(FingerCapacitorSquare, a2=Element.a * 2, b2=Element.b * 2)
 class WaveguideCoplanarTaper(Element):
     """The PCell declaration of a taper segment of a coplanar waveguide.
 
@@ -43,7 +44,7 @@ class WaveguideCoplanarTaper(Element):
             pya.DPoint(0, self.a / 2 + 0),
             pya.DPoint(self.taper_length, self.a2 / 2 + 0),
             pya.DPoint(self.taper_length, self.a2 / 2 + self.b2),
-            pya.DPoint(0, self.a / 2 + self.b)
+            pya.DPoint(0, self.a / 2 + self.b),
         ]
         shape = pya.DPolygon(pts)
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape)
@@ -52,7 +53,7 @@ class WaveguideCoplanarTaper(Element):
             pya.DPoint(0, -self.a / 2 + 0),
             pya.DPoint(self.taper_length, -self.a2 / 2 + 0),
             pya.DPoint(self.taper_length, -self.a2 / 2 - self.b2),
-            pya.DPoint(0, -self.a / 2 - self.b)
+            pya.DPoint(0, -self.a / 2 - self.b),
         ]
         shape = pya.DPolygon(pts)
         self.cell.shapes(self.get_layer("base_metal_gap_wo_grid")).insert(shape)
@@ -61,7 +62,7 @@ class WaveguideCoplanarTaper(Element):
             pya.DPoint(0, -self.a / 2 - self.b - self.margin),
             pya.DPoint(self.taper_length, -self.a2 / 2 - self.b2 - self.m2),
             pya.DPoint(self.taper_length, self.a2 / 2 + self.b2 + self.m2),
-            pya.DPoint(0, self.a / 2 + self.b + self.margin)
+            pya.DPoint(0, self.a / 2 + self.b + self.margin),
         ]
         self.add_protection(pya.DPolygon(pts))
         # Waveguide layer
@@ -69,7 +70,7 @@ class WaveguideCoplanarTaper(Element):
             pya.DPoint(0, self.a / 2),
             pya.DPoint(self.taper_length, self.a2 / 2),
             pya.DPoint(self.taper_length, -self.a2 / 2),
-            pya.DPoint(0, -self.a / 2)
+            pya.DPoint(0, -self.a / 2),
         ]
         shape = pya.DPolygon(pts)
         self.cell.shapes(self.get_layer("waveguide_path")).insert(shape)

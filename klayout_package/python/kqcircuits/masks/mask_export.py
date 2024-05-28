@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 """Functions for exporting mask sets."""
 import json
@@ -24,8 +25,12 @@ from math import pi
 import logging
 
 from kqcircuits.chips.chip import Chip
-from kqcircuits.defaults import mask_bitmap_export_layers, chip_export_layer_clusters, default_layers, \
-    default_mask_parameters
+from kqcircuits.defaults import (
+    mask_bitmap_export_layers,
+    chip_export_layer_clusters,
+    default_layers,
+    default_mask_parameters,
+)
 from kqcircuits.elements.flip_chip_connectors.flip_chip_connector_dc import FlipChipConnectorDc
 from kqcircuits.klayout_view import resolve_default_layer_info
 from kqcircuits.pya_resolver import pya
@@ -35,6 +40,7 @@ from kqcircuits.util.geometry_helper import circle_polygon
 from kqcircuits.util.geometry_json_encoder import GeometryJsonEncoder
 from kqcircuits.util.netlist_extraction import export_cell_netlist
 from kqcircuits.util.export_helper import export_drc_report
+from kqcircuits.util.replace_junctions import extract_junctions, get_tuned_junction_json
 
 
 def export_mask_set(mask_set, skip_extras=False):
@@ -67,6 +73,8 @@ def export_chip(chip_cell, chip_name, chip_dir, layout, export_drc, alt_netlists
     dummy_cell = layout.create_cell(chip_name)
     dummy_cell.insert(pya.DCellInstArray(chip_cell.cell_index(), pya.DTrans()))
     _export_cell(chip_dir / f"{chip_name}_with_pcells.oas", dummy_cell, "all")
+    if not skip_extras and is_pcell:  # Don't export junction parameters list if chip_cell is not pcell
+        export_junction_parameters(dummy_cell, chip_dir / f"{chip_name}_junction_parameters.json")
     dummy_cell.delete()
     static_cell = layout.cell(layout.convert_cell_to_static(chip_cell.cell_index()))
 
@@ -93,7 +101,7 @@ def export_chip(chip_cell, chip_name, chip_dir, layout, export_drc, alt_netlists
             "Chip class name": chip_class.__name__ if is_pcell else None,
             "Chip parameters": chip_params if is_pcell else None,
             "Bump count": bump_count,
-            "Layer areas and densities": layer_areas_and_densities
+            "Layer areas and densities": layer_areas_and_densities,
         }
 
         with open(chip_dir / (chip_name + ".json"), "w") as f:
@@ -114,8 +122,11 @@ def export_chip(chip_cell, chip_name, chip_dir, layout, export_drc, alt_netlists
                 # an instance of the cell is inserted to a temporary cell with the correct transformation.
                 # Was not able to get this working by just using static_cell.transform_into().
                 temporary_cell = layout.create_cell(chip_name)
-                temporary_cell.insert(pya.DCellInstArray(static_cell.cell_index(), default_mask_parameters[
-                    layer_cluster.face_id]["chip_trans"]))
+                temporary_cell.insert(
+                    pya.DCellInstArray(
+                        static_cell.cell_index(), default_mask_parameters[layer_cluster.face_id]["chip_trans"]
+                    )
+                )
                 layers_to_export = {name: layout.layer(default_layers[name]) for name in layer_cluster.all_layers()}
                 path = chip_dir / f"{chip_name}-{cluster_name}.gds"
                 _export_cell(path, temporary_cell, layers_to_export)
@@ -123,7 +134,7 @@ def export_chip(chip_cell, chip_name, chip_dir, layout, export_drc, alt_netlists
 
         # export drc report for the chip
         if export_drc:
-            export_drc_report(chip_name, chip_dir)
+            export_drc_report(chip_name, chip_dir, export_drc)
 
     # delete the static cell which was only needed for export
     if static_cell.cell_index() != chip_cell.cell_index():
@@ -131,7 +142,7 @@ def export_chip(chip_cell, chip_name, chip_dir, layout, export_drc, alt_netlists
 
 
 def export_masks_of_face(export_dir, mask_layout, mask_set):
-    """ Exports masks for layers of a single face of a mask_set.
+    """Exports masks for layers of a single face of a mask_set.
 
     Args:
         export_dir: directory for the face specific subdirectories
@@ -148,15 +159,17 @@ def export_masks_of_face(export_dir, mask_layout, mask_set):
         export_mask(export_dir_for_face, layer_name, mask_layout, mask_set)
 
     # Find area and density for the layers defined in mask_layout.mask_export_density_layers
-    layer_infos = [resolve_default_layer_info(layer_name, mask_layout.face_id)
-                   for layer_name in mask_layout.mask_export_density_layers]
+    layer_infos = [
+        resolve_default_layer_info(layer_name, mask_layout.face_id)
+        for layer_name in mask_layout.mask_export_density_layers
+    ]
     area_data = get_area_and_density(mask_layout.top_cell, layer_infos)
 
-    wafer_area = pi * mask_layout.wafer_rad ** 2  # Use circular wafer area instead of rectangular bounding boxes
-    layer_areas_and_densities = {name: {
-        "area": round(area, 2),
-        "density": round(area / wafer_area * 100, 2)
-    } for name, area, _ in zip(*area_data)}
+    wafer_area = pi * mask_layout.wafer_rad**2  # Use circular wafer area instead of rectangular bounding boxes
+    layer_areas_and_densities = {
+        name: {"area": round(area, 2), "density": round(area / wafer_area * 100, 2)}
+        for name, area, _ in zip(*area_data)
+    }
 
     mask_json = {
         "layer_areas_and_densities": layer_areas_and_densities,
@@ -166,7 +179,7 @@ def export_masks_of_face(export_dir, mask_layout, mask_set):
 
 
 def export_mask(export_dir, layer_name, mask_layout, mask_set):
-    """ Exports a mask from a single layer of a single face of a mask set.
+    """Exports a mask from a single layer of a single face of a mask set.
 
     Args:
         export_dir: directory for the files
@@ -177,11 +190,11 @@ def export_mask(export_dir, layer_name, mask_layout, mask_set):
         mask_set: MaskSet object for the name and version attributes to be included in the filename
     """
     invert = False
-    if layer_name.startswith('-'):
+    if layer_name.startswith("-"):
         layer_name = layer_name[1:]
         invert = True
     mirror = False
-    if layer_name.startswith('^'):
+    if layer_name.startswith("^"):
         layer_name = layer_name[1:]
         mirror = True
 
@@ -268,9 +281,11 @@ def export_docs(mask_set, filename="Mask_Documentation.md"):
                 params.update(params_input)
                 params_schema = cls.get_schema()
                 for param_name, param_declaration in params_schema.items():
-                    f.write("| **{}** | {} |\n".format(
-                        param_declaration.description.replace("|", "&#124;"),
-                        str(params[param_name])))
+                    f.write(
+                        "| **{}** | {} |\n".format(
+                            param_declaration.description.replace("|", "&#124;"), str(params[param_name])
+                        )
+                    )
             f.write("\n")
 
             f.write("### Other Chip Information\n")
@@ -333,8 +348,13 @@ def export_bitmaps(mask_set, spec_layers=mask_bitmap_export_layers):
         if view:
             view.focus(mask_layout.top_cell)
             view.export_all_layers_bitmap(mask_layout_dir, mask_layout.top_cell, filename=filename)
-            view.export_layers_bitmaps(mask_layout_dir, mask_layout.top_cell, filename=filename,
-                                       layers_set=spec_layers, face_id=mask_layout.face_id)
+            view.export_layers_bitmaps(
+                mask_layout_dir,
+                mask_layout.top_cell,
+                filename=filename,
+                layers_set=spec_layers,
+                face_id=mask_layout.face_id,
+            )
     # export bitmaps for chips
     chips_dir = _get_directory(mask_set._mask_set_dir / "Chips")
     for name, cell in mask_set.used_chips.items():
@@ -383,3 +403,13 @@ def _get_directory(directory):
 
 def get_mask_layout_full_name(mask_set, mask_layout):
     return f"{mask_set.name}_v{mask_set.version}-{mask_layout.face_id}{mask_layout.extra_id}"
+
+
+def export_junction_parameters(cell, path):
+    """Exports a json file containing all parameter values for each junction in the given chip (as cell)"""
+    junctions = extract_junctions(cell, {})
+    if len(junctions) > 0:
+        params_json = json.dumps(get_tuned_junction_json(junctions), indent=2)
+        with open(path, "w") as file:
+            file.write(params_json)
+        logging.info(f"Exported tunable junction parameters to {path}")

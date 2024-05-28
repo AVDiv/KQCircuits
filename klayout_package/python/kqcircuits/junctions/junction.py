@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from kqcircuits.elements.element import Element
@@ -41,8 +42,13 @@ class Junction(Element):
     default_type = default_junction_type
 
     junction_type = Param(pdt.TypeString, "Junction Type", default_junction_type, choices=junction_type_choices)
-    junction_width = Param(pdt.TypeDouble, "Junction width for code generated element", 0.02, unit="μm",
-                           docstring="Junction width (only used for code generated element)")
+    junction_width = Param(
+        pdt.TypeDouble,
+        "Junction width for code generated element",
+        0.02,
+        unit="μm",
+        docstring="Junction width (only used for code generated element)",
+    )
     junction_parameters = Param(pdt.TypeString, "Extra Junction Parameters", "{}")
     _junction_parameters = Param(pdt.TypeString, "Previous state of *_parameters", "{}", hidden=True)
 

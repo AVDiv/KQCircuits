@@ -12,16 +12,19 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 from tests.chips.chip_test_helpers import errors_test, box_existence_test
 
 from kqcircuits.chips.lithography_test_twoface import LithographyTestTwoface
 
+
 def test_errors(capfd):
     errors_test(capfd, LithographyTestTwoface)
+
 
 def test_box_existence():
     box_existence_test(LithographyTestTwoface)

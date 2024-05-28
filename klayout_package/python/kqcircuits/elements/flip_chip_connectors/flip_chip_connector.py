@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 from kqcircuits.elements.element import Element
 from kqcircuits.util.geometry_helper import circle_polygon
@@ -28,9 +29,10 @@ class FlipChipConnector(Element):
     Origin is at the geometric center.
     """
 
-    ubm_diameter = Param(pdt.TypeDouble, "Under-bump metalization diameter",
-                         default_bump_parameters['under_bump_diameter'], unit="μm")
-    bump_diameter = Param(pdt.TypeDouble, "Bump diameter", default_bump_parameters['bump_diameter'], unit="μm")
+    ubm_diameter = Param(
+        pdt.TypeDouble, "Under-bump metalization diameter", default_bump_parameters["under_bump_diameter"], unit="μm"
+    )
+    bump_diameter = Param(pdt.TypeDouble, "Bump diameter", default_bump_parameters["bump_diameter"], unit="μm")
 
     def create_bump_connector(self):
         ubm_shape = circle_polygon(self.ubm_diameter / 2, self.n)

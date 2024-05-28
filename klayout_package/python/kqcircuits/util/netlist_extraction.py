@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import json
@@ -112,6 +113,20 @@ def _export_cell_netlist_breakdown(cell, filename, pcell, breakdown_list):
         log.info(f"No circuit found for {cell.display_title()}")
 
 
+def _transformations_close_enough(trans_a, trans_b):
+    angle_a, angle_b = trans_a.angle, trans_b.angle
+    if angle_a - angle_b > 180:
+        angle_a -= 360
+    elif angle_b - angle_a > 180:
+        angle_b -= 360
+    return (
+        trans_a.mag == trans_b.mag
+        and trans_a.is_mirror() == trans_b.is_mirror()
+        and abs(angle_a - angle_b) < 0.001
+        and (trans_a.disp - trans_b.disp).length() < 0.001
+    )
+
+
 def _export_netlist(circuit, filename, internal_layout, original_layout, cell_mapping, pcell, breakdown_list):
     """A helper function of ``export_cell_netlist``,  exports ``circuit`` into ``filename``.
 
@@ -131,7 +146,7 @@ def _export_netlist(circuit, filename, internal_layout, original_layout, cell_ma
         subcircuits = list(circuit.each_subcircuit())
         for subcircuit in subcircuits:
             internal_cell = internal_layout.cell(subcircuit.circuit_ref().cell_index)
-            if internal_cell.name.split('$')[0].replace('*', ' ') in breakdown_list:
+            if internal_cell.name.split("$")[0].replace("*", " ") in breakdown_list:
                 circuit.flatten_subcircuit(subcircuit)
 
     nets_for_export = {}
@@ -157,19 +172,41 @@ def _export_netlist(circuit, filename, internal_layout, original_layout, cell_ma
             instance_queue.append((child, instance_trans * instance.dcplx_trans))
 
     # Indexing as defined in default_layers is not consistent with layer indexing in original_layout
-    base_metal_gap_wo_grid_layer_idx_array = [idx for idx, li in
-        enumerate(original_layout.layer_infos()) if li.name.endswith('_base_metal_gap_wo_grid')]
+    base_metal_gap_wo_grid_layer_idx_array = [
+        idx for idx, li in enumerate(original_layout.layer_infos()) if li.name.endswith("_base_metal_gap_wo_grid")
+    ]
 
     for subcircuit in circuit.each_subcircuit():
         internal_cell = internal_layout.cell(subcircuit.circuit_ref().cell_index)
         if cell_mapping.has_mapping(internal_cell.cell_index()):
             original_cell_index = cell_mapping.cell_mapping(internal_cell.cell_index())
-            possible_instances = [(i,i_trans) for i,i_trans in original_instances
-                                                if i.cell.cell_index() == original_cell_index]
+            possible_instances = [
+                (i, i_trans) for i, i_trans in original_instances if i.cell.cell_index() == original_cell_index
+            ]
         else:
-            log.info(('%s element has no cell mapping in %s between circuit layout and orignal layout,'
-                    ' using subcircuit center point as subcircuit_location instead'), internal_cell.name, circuit.name)
-            possible_instances = []
+            original_cell = original_layout.cell(internal_cell.name)
+            if not original_cell:
+                log.info(
+                    (
+                        f"{internal_cell.name} element has no cell mapping in {circuit.name} "
+                        "between circuit layout and orignal layout. "
+                        "Depending on cell type this can make the netlist unusable. "
+                        "Using subcircuit center point as subcircuit_location"
+                    )
+                )
+                possible_instances = []
+            else:
+                log.info(
+                    (
+                        f"There was no cell mapping for {internal_cell.name} element "
+                        "between circuit layout and orignal layout, "
+                        "but the element in original layout was succesfully looked up by name."
+                    )
+                )
+                original_cell_index = original_cell.cell_index()
+                possible_instances = [
+                    (i, i_trans) for i, i_trans in original_instances if i.cell.cell_index() == original_cell_index
+                ]
 
         used_internal_cells.add(internal_cell)
 
@@ -180,8 +217,11 @@ def _export_netlist(circuit, filename, internal_layout, original_layout, cell_ma
             subcircuit_trans = pya.DCplxTrans.R0
             subcircuit_location = pya.DPoint(0.0, 0.0)
 
-        instances_with_eq_trans = [(i, i_trans) for i, i_trans in possible_instances
-                                                if i_trans * i.dcplx_trans == subcircuit_trans]
+        instances_with_eq_trans = [
+            (i, i_trans)
+            for i, i_trans in possible_instances
+            if _transformations_close_enough(i_trans * i.dcplx_trans, subcircuit_trans)
+        ]
         property_dict = {}
         correct_instance = None
         if instances_with_eq_trans:
@@ -189,8 +229,9 @@ def _export_netlist(circuit, filename, internal_layout, original_layout, cell_ma
             instances_with_property_dict = [(i, i_trans) for i, i_trans in instances_with_eq_trans if i.has_prop_id()]
             if instances_with_property_dict:
                 correct_instance, correct_instance_trans = instances_with_property_dict[0]
-                property_dict = {key: value for (key, value) in
-                    original_layout.properties(correct_instance.prop_id) if key != "id"}
+                property_dict = {
+                    key: value for (key, value) in original_layout.properties(correct_instance.prop_id) if key != "id"
+                }
             else:
                 correct_instance, correct_instance_trans = instances_with_eq_trans[0]
             # Collect bounding boxes for all *_base_metal_gap_wo_grid layers
@@ -201,22 +242,37 @@ def _export_netlist(circuit, filename, internal_layout, original_layout, cell_ma
                 if not bbox.empty():
                     bboxes.append(bbox)
             if len(bboxes) > 0:
-                combined_bbox = pya.DBox(min([bbox.p1.x for bbox in bboxes]), min([bbox.p1.y for bbox in bboxes]),
-                                         max([bbox.p2.x for bbox in bboxes]), max([bbox.p2.y for bbox in bboxes]))
+                combined_bbox = pya.DBox(
+                    min([bbox.p1.x for bbox in bboxes]),
+                    min([bbox.p1.y for bbox in bboxes]),
+                    max([bbox.p2.x for bbox in bboxes]),
+                    max([bbox.p2.y for bbox in bboxes]),
+                )
                 # subcircuit_location is the center of geometry of all *_base_metal_gap_wo_grid layers in the cell
                 # we also transform the point by instance's predecessors' transformation
                 subcircuit_location = correct_instance_trans * combined_bbox.center()
             else:
-                log.info(('%s element has no bounding boxes in *_base_metal_gap_wo_grid layers in %s,'
-                    ' using subcircuit center point as subcircuit_location instead'),
-                    internal_cell.name, circuit.name)
+                log.info(
+                    (
+                        "%s element has no bounding boxes in *_base_metal_gap_wo_grid layers in %s,"
+                        " using subcircuit center point as subcircuit_location instead"
+                    ),
+                    internal_cell.name,
+                    circuit.name,
+                )
         elif possible_instances:
-            log.info(('Could not find a matching element for %s subcircuit in the orignal layout of %s,'
-                    ' using subcircuit center point as subcircuit_location instead'), internal_cell.name, circuit.name)
+            log.info(
+                (
+                    "Could not find a matching element for %s subcircuit in the orignal layout of %s,"
+                    " using subcircuit center point as subcircuit_location instead"
+                ),
+                internal_cell.name,
+                circuit.name,
+            )
 
         subcircuits_for_export[subcircuit.id()] = {
             "cell_name": internal_cell.name,
-            "instance_name": correct_instance.property('id') if correct_instance else None,
+            "instance_name": correct_instance.property("id") if correct_instance else None,
             "subcircuit_origin": subcircuit_trans.disp,
             "subcircuit_location": subcircuit_location,
             "properties": property_dict,
@@ -229,54 +285,57 @@ def _export_netlist(circuit, filename, internal_layout, original_layout, cell_ma
     chip_for_export = {}
     if pcell.pcell_declaration() is not None:
         chip_params = pcell.pcell_parameters_by_name()
-        if {'frames_enabled', 'face_boxes', 'face_ids', 'box'} <= set(chip_params.keys()):
-            for face in chip_params['frames_enabled']:
-                face_box = chip_params['face_boxes'][int(face)]
+        if {"frames_enabled", "face_boxes", "face_ids", "box"} <= set(chip_params.keys()):
+            for face in chip_params["frames_enabled"]:
+                face_box = chip_params["face_boxes"][int(face)]
                 if face_box is None:
-                    face_box = chip_params['box']
-                face_id = chip_params['face_ids'][int(face)]
-                chip_for_export[f'{face_id}_face_dimensions'] = face_box
+                    face_box = chip_params["box"]
+                face_id = chip_params["face_ids"][int(face)]
+                chip_for_export[f"{face_id}_face_dimensions"] = face_box
 
-    with open(str(filename), 'w') as fp:
-        json.dump({
-            "nets": nets_for_export,
-            "subcircuits": subcircuits_for_export,
-            "circuits": circuits_for_export,
-            "chip": chip_for_export
-        }, fp, cls=GeometryJsonEncoder, indent=4)
+    with open(str(filename), "w") as fp:
+        json.dump(
+            {
+                "nets": nets_for_export,
+                "subcircuits": subcircuits_for_export,
+                "circuits": circuits_for_export,
+                "chip": chip_for_export,
+            },
+            fp,
+            cls=GeometryJsonEncoder,
+            indent=4,
+        )
 
 
 def extract_nets(net):
-    """ Extract dictionary for net for JSON export """
+    """Extract dictionary for net for JSON export"""
     net_for_export = []
     for pin_ref in net.each_subcircuit_pin():
-        net_for_export.append({
-            "subcircuit_id": pin_ref.subcircuit().id(),
-            "pin": pin_ref.pin().expanded_name()
-        })
+        net_for_export.append({"subcircuit_id": pin_ref.subcircuit().id(), "pin": pin_ref.pin().expanded_name()})
 
     return net_for_export
 
 
 def extract_circuits(cell_mapping, internal_cell, layout):
-    """ Extract dictionary for circuit for JSON export """
+    """Extract dictionary for circuit for JSON export"""
 
-    circuit_has_cell = cell_mapping.has_mapping(internal_cell.cell_index())
-    circuit_for_export = {"circuit_has_cell": circuit_has_cell}
-
-    if circuit_has_cell:
+    if cell_mapping.has_mapping(internal_cell.cell_index()):
         original_cell_index = cell_mapping.cell_mapping(internal_cell.cell_index())
         original_cell = layout.cell(original_cell_index)
+    else:
+        original_cell = layout.cell(internal_cell.name)
+        if original_cell:  # Cell looked up by name, circuits has cell after all
+            original_cell_index = original_cell.cell_index()
+    circuit_for_export = {"circuit_has_cell": original_cell is not None}
+
+    if original_cell:
         is_pcell = original_cell.is_pcell_variant()
         circuit_for_export["is_pcell"] = is_pcell
         pcell_parameters = original_cell.pcell_parameters_by_name()
 
         # remove regardless if exists since it does not actually include more than base anyway
-        pcell_parameters.pop('refpoints', None)
+        pcell_parameters.pop("refpoints", None)
         if is_pcell:
-            circuit_for_export = {
-                **circuit_for_export,
-                **pcell_parameters
-            }
+            circuit_for_export = {**circuit_for_export, **pcell_parameters}
         circuit_for_export["waveguide_length"] = get_cell_path_length(original_cell)
     return circuit_for_export

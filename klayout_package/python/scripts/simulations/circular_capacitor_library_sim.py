@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 import logging
 import sys
@@ -21,11 +22,15 @@ from pathlib import Path
 
 from kqcircuits.pya_resolver import pya
 from kqcircuits.elements.circular_capacitor import CircularCapacitor
+from kqcircuits.simulations.post_process import PostProcess
 from kqcircuits.simulations.single_element_simulation import get_single_element_sim_class
 from kqcircuits.simulations.export.ansys.ansys_export import export_ansys
 from kqcircuits.simulations.export.simulation_export import cross_sweep_simulation, export_simulation_oas
-from kqcircuits.util.export_helper import create_or_empty_tmp_directory, get_active_or_new_layout, \
-    open_with_klayout_or_default_application
+from kqcircuits.util.export_helper import (
+    create_or_empty_tmp_directory,
+    get_active_or_new_layout,
+    open_with_klayout_or_default_application,
+)
 
 # Prepare output directory
 dir_path = create_or_empty_tmp_directory(Path(__file__).stem + "_output")
@@ -34,31 +39,31 @@ sim_class = get_single_element_sim_class(CircularCapacitor)  # pylint: disable=i
 
 # Simulation parameters
 sim_parameters = {
-    'name': 'circular_capacitor',
-    'use_internal_ports': True,
-    'use_ports': True,
-    'box': pya.DBox(pya.DPoint(0, 0), pya.DPoint(1000, 1000)),
-    'port_size': 200,
-    'face_stack': ['1t1'],
-    'corner_r': 2,
-    'chip_distance': 8,
-
-    'ground_gap': 20,
-    'fixed_length': 0,
-    'r_inner': 75,
-    'r_outer': 120,
-    'swept_angle': 180,
-    'outer_island_width': 40,
-    'a': 10,
-    'b': 6,
+    "name": "circular_capacitor",
+    "use_internal_ports": True,
+    "use_ports": True,
+    "box": pya.DBox(pya.DPoint(0, 0), pya.DPoint(1000, 1000)),
+    "port_size": 200,
+    "face_stack": ["1t1"],
+    "corner_r": 2,
+    "chip_distance": 8,
+    "ground_gap": 20,
+    "fixed_length": 0,
+    "r_inner": 75,
+    "r_outer": 120,
+    "swept_angle": 180,
+    "outer_island_width": 40,
+    "a": 10,
+    "b": 6,
 }
 export_parameters = {
-    'path': dir_path,
-    'ansys_tool': 'q3d',
-    'exit_after_run': True,
-    'percent_error': 0.3,
-    'minimum_converged_passes': 2,
-    'maximum_passes': 20,
+    "path": dir_path,
+    "ansys_tool": "q3d",
+    "post_process": PostProcess("produce_cmatrix_table.py"),
+    "exit_after_run": True,
+    "percent_error": 0.3,
+    "minimum_converged_passes": 2,
+    "maximum_passes": 20,
 }
 
 # Sweep ranges
@@ -77,39 +82,53 @@ simulations = []
 
 # Smaller geometry single face sweep
 for ab in ab_single:
-    simulations += cross_sweep_simulation(layout, sim_class, sim_parameters, {
-        'r_inner': [10],
-        'r_outer': [55],
-        'outer_island_width': [20],
-        'swept_angle': swept_angle,
-        'a': [ab[0]],
-        'a2': [ab[0]],
-        'b': [ab[1]],
-        'b2': [ab[1]],
-    })
+    simulations += cross_sweep_simulation(
+        layout,
+        sim_class,
+        sim_parameters,
+        {
+            "r_inner": [10],
+            "r_outer": [55],
+            "outer_island_width": [20],
+            "swept_angle": swept_angle,
+            "a": [ab[0]],
+            "a2": [ab[0]],
+            "b": [ab[1]],
+            "b2": [ab[1]],
+        },
+    )
 
 # Single face sweep
 for ab in ab_single:
-    simulations += cross_sweep_simulation(layout, sim_class, sim_parameters, {
-        'r_inner': r_inner,
-        'swept_angle': swept_angle,
-        'a': [ab[0]],
-        'a2': [ab[0]],
-        'b': [ab[1]],
-        'b2': [ab[1]],
-    })
+    simulations += cross_sweep_simulation(
+        layout,
+        sim_class,
+        sim_parameters,
+        {
+            "r_inner": r_inner,
+            "swept_angle": swept_angle,
+            "a": [ab[0]],
+            "a2": [ab[0]],
+            "b": [ab[1]],
+            "b2": [ab[1]],
+        },
+    )
 
 for ab in ab_multi:
-    simulations += cross_sweep_simulation(layout, sim_class,
-        {**sim_parameters, 'face_stack': ['1t1', '2b1']}, {
-        'chip_distance': chip_distances,
-        'r_inner': r_inner,
-        'swept_angle': swept_angle,
-        'a': [ab[0]],
-        'a2': [ab[0]],
-        'b': [ab[1]],
-        'b2': [ab[1]],
-    })
+    simulations += cross_sweep_simulation(
+        layout,
+        sim_class,
+        {**sim_parameters, "face_stack": ["1t1", "2b1"]},
+        {
+            "chip_distance": chip_distances,
+            "r_inner": r_inner,
+            "swept_angle": swept_angle,
+            "a": [ab[0]],
+            "a2": [ab[0]],
+            "b": [ab[1]],
+            "b2": [ab[1]],
+        },
+    )
 
 
 # simulations for getting the ballpark

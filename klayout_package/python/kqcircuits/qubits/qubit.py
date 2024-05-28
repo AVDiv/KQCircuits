@@ -12,12 +12,12 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
-import math
-
+from kqcircuits.util.geometry_helper import get_angle
 from kqcircuits.elements.element import Element
 from kqcircuits.elements.fluxlines.fluxline import Fluxline
 from kqcircuits.pya_resolver import pya
@@ -27,9 +27,10 @@ from kqcircuits.junctions.squid import Squid
 from kqcircuits.junctions.sim import Sim
 
 
-@add_parameters_from(Fluxline, "fluxline_gap_width", "fluxline_type", "fluxline_parameters", "_fluxline_parameters")
-@add_parameters_from(Squid, "junction_width", "loop_area", "junction_type",
-                     "junction_parameters", "_junction_parameters")
+@add_parameters_from(Fluxline, "fluxline_type", "fluxline_parameters", "_fluxline_parameters")
+@add_parameters_from(
+    Squid, "junction_width", "loop_area", "junction_type", "junction_parameters", "_junction_parameters"
+)
 @add_parameters_from(Sim, "junction_total_length")
 class Qubit(Element):
     """Base class for qubit objects without actual produce function.
@@ -39,13 +40,26 @@ class Qubit(Element):
     * possible fluxlines
     * e-beam layers for SQUIDs
     * SQUID name parameter
+
+    It is customary to also define probepoints for a qubit. Simply define two refpoints as appropriate probepoints.
+    For single island qubits::
+
+        self.refpoints["probe_ground"] = pya.DPoint(...)
+        self.refpoints["probe_island"] = pya.DPoint(...)
+        self.cell.shapes(self.get_layer("ground_grid_avoidance")).insert(
+            pya.DBox(-20.0, -20.0, 20.0, 20.0).moved(self.refpoints["probe_ground"]))
+
+    For double island qubits::
+
+        self.refpoints["probe_island_1"] = pya.DPoint(...)
+        self.refpoints["probe_island_2"] = pya.DPoint(...)
     """
 
     LIBRARY_NAME = "Qubit Library"
     LIBRARY_DESCRIPTION = "Library for qubits."
     LIBRARY_PATH = "qubits"
 
-    mirror_squid =  Param(pdt.TypeBoolean, "Mirror SQUID by its Y axis", False)
+    mirror_squid = Param(pdt.TypeBoolean, "Mirror SQUID by its Y axis", False)
 
     def coerce_parameters_impl(self):
         self.sync_parameters(Fluxline)
@@ -73,11 +87,11 @@ class Qubit(Element):
         refpoints_rel = self.get_refpoints(cell)
         mwidth = cell.dbbox_per_layer(self.get_layer("base_metal_gap_wo_grid")).width()
         if mwidth > 0.0:
-            refpoints_rel['right_side'] = pya.DPoint(mwidth / 2, 0.0)
+            refpoints_rel["right_side"] = pya.DPoint(mwidth / 2, 0.0)
         squid_transf = transf * pya.DTrans.M90 if self.mirror_squid else transf
 
         if "squid_index" in parameters:
-            s_index = int(parameters.pop('squid_index'))
+            s_index = int(parameters.pop("squid_index"))
             inst, _ = self.insert_cell(cell, squid_transf, inst_name=f"squid_{s_index}")
             inst.set_property("squid_index", s_index)
         else:
@@ -98,7 +112,7 @@ class Qubit(Element):
 
         return refpoints_rel
 
-    def produce_fluxline(self, rot=0, trans=pya.DVector(), **parameters):
+    def produce_fluxline(self, rot=0, displacement=pya.DVector(), **parameters):
         """Produces the fluxline.
 
         Creates the fluxline cell and inserts it as a subcell. The "flux" and "flux_corner" ports
@@ -109,7 +123,7 @@ class Qubit(Element):
 
         Args:
             rot: Extra rotation of the fluxline, in degrees
-            trans (DVector): fluxline x/y translation
+            displacement (DVector): fluxline x/y displacement (ignored if center alignment is available)
             parameters: parameters for the fluxline to overwrite default and subclass parameters
         """
 
@@ -120,9 +134,17 @@ class Qubit(Element):
 
         refpoints_so_far = self.get_refpoints(self.cell)
         squid_edge = refpoints_so_far["origin_squid"]
-        a = (squid_edge - refpoints_so_far['port_common'])
-        rotation = math.atan2(a.y, a.x) / math.pi * 180 + 90
-        total_transformation = pya.DCplxTrans(1, rotation + rot, False, squid_edge - self.refpoints["base"] + trans)
+        rotation = get_angle(squid_edge - refpoints_so_far["port_common"]) + 90
+
+        refpoints_fluxline = self.get_refpoints(cell)
+        if "center_fluxline" in refpoints_fluxline and "center_squid" in refpoints_so_far:
+            total_transformation = pya.DCplxTrans(
+                1, rotation + rot, False, refpoints_so_far["center_squid"] - self.refpoints["base"]
+            ) * pya.DTrans(-refpoints_fluxline["center_fluxline"])
+        else:
+            total_transformation = pya.DCplxTrans(
+                1, rotation + rot, False, squid_edge - self.refpoints["base"] + displacement
+            )
 
         cell_inst, _ = self.insert_cell(cell, total_transformation)
         self.copy_port("flux", cell_inst)

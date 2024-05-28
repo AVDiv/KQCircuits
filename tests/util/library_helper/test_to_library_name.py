@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 import logging
@@ -28,6 +29,7 @@ log = logging.getLogger(__name__)
 # SINGLE WORD TESTS
 
 # normal cases
+
 
 def test_pascal_case():
     result = to_library_name("AbcXyz")
@@ -45,6 +47,7 @@ def test_pascal_case_with_multiple_single_uppercase_letters():
 
 
 # edge cases
+
 
 def test_camel_case():
     with pytest.raises(ValueError) as info:

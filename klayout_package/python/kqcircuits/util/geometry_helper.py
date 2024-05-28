@@ -12,8 +12,9 @@
 # https://www.gnu.org/licenses/gpl-3.0.html.
 #
 # The software distribution should follow IQM trademark policy for open-source software
-# (meetiqm.com/developers/osstmpolicy). IQM welcomes contributions to the code. Please see our contribution agreements
-# for individuals (meetiqm.com/developers/clas/individual) and organizations (meetiqm.com/developers/clas/organization).
+# (meetiqm.com/iqm-open-source-trademark-policy). IQM welcomes contributions to the code.
+# Please see our contribution agreements for individuals (meetiqm.com/iqm-individual-contributor-license-agreement)
+# and organizations (meetiqm.com/iqm-organization-contributor-license-agreement).
 
 
 """Helper module for general geometric functions"""
@@ -137,7 +138,7 @@ def simple_region(region):
 
 
 def region_with_merged_points(region, tolerance):
-    """ In each polygon of the region, removes points that are closer to other points than a given tolerance.
+    """In each polygon of the region, removes points that are closer to other points than a given tolerance.
 
     Arguments:
         region: Input region
@@ -146,8 +147,9 @@ def region_with_merged_points(region, tolerance):
     Returns:
         region: with merged points
     """
+
     def find_next(curr, step, data):
-        """ Returns the next index starting from 'i' to direction 'step' for which 'data' has positive value """
+        """Returns the next index starting from 'i' to direction 'step' for which 'data' has positive value"""
         num = len(data)
         j = curr + step
         while data[j % num] <= 0.0:
@@ -155,7 +157,7 @@ def region_with_merged_points(region, tolerance):
         return j
 
     def merged_points(points):
-        """ Removes points that are closer another points than a given tolerance. Returns list of points."""
+        """Removes points that are closer another points than a given tolerance. Returns list of points."""
         # find squared length of each segment of polygon
         num = len(points)
         squares = [0.0] * num
@@ -164,7 +166,7 @@ def region_with_merged_points(region, tolerance):
 
         # merge short segments
         curr_id = 0
-        squared_tolerance = tolerance ** 2
+        squared_tolerance = tolerance**2
         while curr_id < num:
             if squares[curr_id % num] >= squared_tolerance:
                 # segment long enough: increase 'curr' for the next iteration
@@ -199,7 +201,7 @@ def region_with_merged_points(region, tolerance):
 
 
 def region_with_merged_polygons(region, tolerance, expansion=0.0):
-    """ Merges polygons in given region. Ignores gaps that are smaller than given tolerance.
+    """Merges polygons in given region. Ignores gaps that are smaller than given tolerance.
 
     Arguments:
         region: input region
@@ -216,8 +218,9 @@ def region_with_merged_polygons(region, tolerance, expansion=0.0):
     return new_region
 
 
-def match_points_on_edges(cell, layout, layers):
-    """ Goes through each polygon edge and splits the edge whenever it passes through a point of another polygon.
+def merge_points_and_match_on_edges(cell, layout, layers, tolerance=2):
+    """Merges adjacent points of layers.
+    Also goes through each polygon edge and splits the edge whenever it passes close to existing point.
 
     This function can eliminate gaps and overlaps caused by transformation to simple_polygon.
 
@@ -225,27 +228,94 @@ def match_points_on_edges(cell, layout, layers):
         cell: A cell object.
         layout: A layout object
         layers: List of layers to be considered and modified
+        tolerance: Tolerance in pixels
     """
+
+    def fixed_polygon(pts):
+        """Recursively fixes and possibly splits the polygon. Returns list of polygons.
+        Assumes that len(pts) >= 3 and consecutive points are not duplicates.
+        - removes spikes of overlapping edges
+        - splits polygon if parts of it are connected with overlapping edges
+        """
+        # Create mapping from point to list of indices
+        instance_map = {p: [] for p in pts}
+        for i, p in enumerate(pts):
+            instance_map[p].append(i)
+
+        # Go through all points. If same point has 2 or more instances, then possibly split polygon into smaller pieces.
+        valid = -1  # polygon is valid if there are no duplicate instances or there is a crossing next to any duplicate
+        for p, instances in instance_map.items():
+            if len(instances) < 2:
+                continue
+            valid = max(valid, 0)  # duplicate instance exists
+            for i0 in instances:
+                for i1 in instances:
+                    if i0 == i1:
+                        continue
+                    p0 = pts[i0 - 1]
+                    p1 = pts[(i1 + 1) % len(pts)]
+                    if p0 == p1:
+                        continue
+                    valid = 1  # crossing next to duplicate
+                    p2 = pts[i1 - 1]
+                    if pya.Edge(p0, p).side_of(p2) + pya.Edge(p, p1).side_of(p2) < pya.Edge(p0, p).side_of(p1):
+                        continue  # detected a hole connection at p
+                    poly = fixed_polygon([pts[i % len(pts)] for i in range(i1, i0 + int(i0 < i1) * len(pts))])
+                    j0, j1 = i0, i1 + int(i0 > i1) * len(pts)
+                    while j1 - j0 >= 3:
+                        if pts[(j0 + 1) % len(pts)] != pts[(j1 - 1) % len(pts)]:
+                            return poly + fixed_polygon([pts[i % len(pts)] for i in range(j0, j1)])
+                        j0 += 1
+                        j1 -= 1
+                    return poly
+        return [pya.SimplePolygon(pts, True)] if valid else []
+
     # Gather points from layers to `all_points` dictionary. This ignores duplicate points.
     all_points = dict()
     for layer in layers:
         shapes = cell.shapes(layout.layer(layer))
-        for shape in shapes:
+        for shape in shapes.each():
             all_points.update({point: list() for point in shape.simple_polygon.each_point()})
     if not all_points:
         return  # nothing is done if no points exist
 
     # For each point, assign a list of surrounding points using Voronoi diagram
+    # Create point sets to merge adjacent points into single point
+    merge_sets = []
     point_list = list(all_points)
     vor = spatial.Voronoi([(p.x, p.y) for p in point_list])
     for link in vor.ridge_points:
-        all_points[point_list[link[0]]].append(point_list[link[1]])
-        all_points[point_list[link[1]]].append(point_list[link[0]])
+        p = [point_list[i] for i in link]
+        all_points[p[0]].append(p[1])
+        all_points[p[1]].append(p[0])
+        if p[0].sq_distance(p[1]) <= tolerance**2:
+            current_set = set(link)
+            other_sets = []
+            for merge_set in merge_sets:
+                if current_set.intersection(merge_set):
+                    current_set.update(merge_set)
+                else:
+                    other_sets.append(merge_set)
+            merge_sets = [current_set] + other_sets
 
-    # Travel through polygon edges and split edge whenever it passes through a point
+    # Create dictionary of moved points: includes the point to be moved as key and the new position as value
+    moved = dict()
+    if merge_sets:
+        for merge_set in merge_sets:
+            average = pya.Point()
+            for i in merge_set:
+                average += point_list[i]
+            average /= len(merge_set)
+            for i in merge_set:
+                if point_list[i] != average:
+                    moved[point_list[i]] = average
+
+    # Travel through polygon edges and split edge whenever it passes close to a point
+    # Possibly move some points into new location
     for layer in layers:
         shapes = cell.shapes(layout.layer(layer))
-        for shape in shapes:
+        polygons = []
+        for shape in shapes.each():
             points = list(shape.simple_polygon.each_point())
             new_points = []
             for i, p1 in enumerate(points):
@@ -253,20 +323,30 @@ def match_points_on_edges(cell, layout, layers):
                 edge = pya.Edge(p0, p1)
                 # Travel from p0 to p1 in Voronoi diagram
                 while p0 != p1:
-                    # List points that are on the edge towards p1
-                    sq_dist = p0.sq_distance(p1)
-                    p_on_edge = [p for p in all_points[p0] if edge.contains(p) and p.sq_distance(p1) < sq_dist]
-                    if p_on_edge:
-                        # Update p0 to be the point on edge towards p1 that is furthest from p1
-                        p0 = max(p_on_edge, key=lambda x, y=p1: x.sq_distance(y))
-                        new_points.append(p0)  # Add the point to the polygon. Finally, p0 is equal to p1 here.
-                    else:
-                        # Update p0 to be the neighbour closest to p1
-                        p0 = min(all_points[p0], key=lambda x, y=p1: x.sq_distance(y))
+                    # Find the next Voronoi cell through which the edge passes
+                    next_cell = []
+                    for p in all_points[p0]:
+                        dot = edge.d().sprod(p - p0)  # dot product between the edge vector and (p - p0)
+                        if dot <= 0.0:
+                            continue
+                        t = (p.sq_distance(edge.p1) - p0.sq_distance(edge.p1)) / dot  # distance to the Voronoi cell
+                        if not next_cell or t < next_cell[1]:
+                            next_cell = [p, t]
+                    # The next_cell is found unless the Voronoi diagram is badly broken
+                    p0 = next_cell[0]
+                    if edge.distance_abs(p0) <= tolerance:
+                        # Point is close to edge, so add the point to the polygon. Finally, p0 is equal to p1 here.
+                        new_points.append(moved[p0] if p0 in moved else p0)
 
-            # Replace polygon if any points are added
-            if len(new_points) != len(points):
-                shapes.replace(shape, pya.SimplePolygon(new_points, True))
+            # Remove consecutive duplicate points and update list of polygons by fixed polygons
+            new_points_no_duplicates = [p for i, p in enumerate(new_points) if p != new_points[i - 1]]
+            if len(new_points_no_duplicates) >= 3:
+                polygons += fixed_polygon(new_points_no_duplicates)
+
+        # Replace shapes with list of polygons
+        shapes.clear()
+        for new_polygon in polygons:
+            shapes.insert(new_polygon)
 
 
 def is_clockwise(polygon_points):
@@ -283,7 +363,7 @@ def is_clockwise(polygon_points):
     a = polygon_points[bottom_left_point_idx - 1]
     b = polygon_points[bottom_left_point_idx]
     c = polygon_points[(bottom_left_point_idx + 1) % len(polygon_points)]
-    det = (b.x - a.x)*(c.y - a.y) - (c.x - a.x)*(b.y - a.y)
+    det = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)
     return det < 0
 
 
@@ -321,10 +401,9 @@ def arc_points(r, start=0, stop=2 * pi, n=64, origin=pya.DPoint(0, 0)):
     return [origin + pya.DPoint(cos(start + a * step) * r, sin(start + a * step) * r) for a in range(0, n_steps)]
 
 
-def _cubic_polynomial(control_points: List[pya.DPoint],
-                      spline_matrix: np.array,
-                      sample_points: int = 100,
-                      endpoint: bool = False) -> List[pya.DPoint]:
+def _cubic_polynomial(
+    control_points: List[pya.DPoint], spline_matrix: np.array, sample_points: int = 100, endpoint: bool = False
+) -> List[pya.DPoint]:
     """Returns a list of DPoints sampled uniformly from a third order polynomial spline
 
     Args:
@@ -340,15 +419,14 @@ def _cubic_polynomial(control_points: List[pya.DPoint],
     geometry_matrix = np.array([[p.x, p.y] for p in control_points]).T
     result_points = []
     for t in np.linspace(0.0, 1.0, sample_points, endpoint=endpoint):
-        result_vector = geometry_matrix.dot(spline_matrix).dot(np.array([1, t, t*t, t*t*t]).T)
+        result_vector = geometry_matrix.dot(spline_matrix).dot(np.array([1, t, t * t, t * t * t]).T)
         result_points.append(pya.DPoint(result_vector[0], result_vector[1]))
     return result_points
 
 
-def bspline_points(control_points: List[pya.DPoint],
-                   sample_points: int = 100,
-                   startpoint: bool = False,
-                   endpoint: bool = False) -> List[pya.DPoint]:
+def bspline_points(
+    control_points: List[pya.DPoint], sample_points: int = 100, startpoint: bool = False, endpoint: bool = False
+) -> List[pya.DPoint]:
     """Samples points uniformly from the B-Spline constructed from a sequence of control points.
     The spline is derived from a sequence of cubic splines for each subsequence of four-control points
     in a sliding window.
@@ -381,17 +459,16 @@ def bspline_points(control_points: List[pya.DPoint],
         control_points = control_points + [control_points[-1], control_points[-1]]
     if len(control_points) < 4:
         raise ValueError("B-Spline needs at least four control points")
-    bspline_matrix = (1.0/6.0) * np.array([[ 1,-3, 3,-1],
-                                           [ 4, 0,-6, 3],
-                                           [ 1, 3, 3,-3],
-                                           [ 0, 0, 0, 1]])
+    bspline_matrix = (1.0 / 6.0) * np.array([[1, -3, 3, -1], [4, 0, -6, 3], [1, 3, 3, -3], [0, 0, 0, 1]])
     result_points = []
     # Sliding window
     for window_start in range(len(control_points) - 3):
-        result_points += _cubic_polynomial( control_points[window_start:window_start+4],
-                                            bspline_matrix,
-                                            sample_points,
-                                            endpoint=(window_start == len(control_points) - 4))
+        result_points += _cubic_polynomial(
+            control_points[window_start : window_start + 4],
+            bspline_matrix,
+            sample_points,
+            endpoint=(window_start == len(control_points) - 4),
+        )
     return result_points
 
 
@@ -419,15 +496,14 @@ def bezier_points(control_points: List[pya.DPoint], sample_points: int = 100) ->
     """
     if (len(control_points) - 1) % 3 == 0:
         raise ValueError("For Bezier curve, the number of control points should equal to 3*n+1 for some integer n")
-    bezier_matrix = np.array([[ 1,-3, 3,-1],
-                              [ 0, 3,-6, 3],
-                              [ 0, 0, 3,-3],
-                              [ 0, 0, 0, 1]])
+    bezier_matrix = np.array([[1, -3, 3, -1], [0, 3, -6, 3], [0, 0, 3, -3], [0, 0, 0, 1]])
     result_points = []
     # Windows with one shared control point
     for window_start in range(0, len(control_points) - 3, 3):
-        result_points += _cubic_polynomial( control_points[window_start:window_start+4],
-                                            bezier_matrix,
-                                            sample_points,
-                                            endpoint=(window_start == len(control_points) - 4))
+        result_points += _cubic_polynomial(
+            control_points[window_start : window_start + 4],
+            bezier_matrix,
+            sample_points,
+            endpoint=(window_start == len(control_points) - 4),
+        )
     return result_points
